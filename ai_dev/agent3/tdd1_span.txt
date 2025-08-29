@@ -1,0 +1,44 @@
+<span0>Technical Design Document (TDD): Creator Connect</span0>
+<span1>Document ID: TDD-2025-61C Title: TDD: Creator Connect Service (V1) Author: Kenji Tanaka (Senior Software Engineer) Reviewers: Engineering Team, Security Team Related PRD: PRD-2025-48B</span1>
+<span2>1. Overview & Architecture</span2>
+<span3>This document details the backend implementation for the Creator Connect feature. We will introduce a new microservice, creator-connect-service, to orchestrate the business logic of mentorship connections, acting as an intermediary between the user-facing client and existing platform services. The flow is as follows: A request from an established creator's client hits the new service. The service validates mentor eligibility against the Spanner rule engine, checks for existing connections, and then calls the direct-messaging-service to create the initial request message.</span3>
+<span4>2. Service Dependencies</span4>
+<span5>user-profile-service: To fetch follower counts, account age, and verification status.</span5>
+<span6>direct-messaging-service: To create and manage the communication channel.</span6>
+<span7>Spanner (Rule Engine): To host and execute the mentor eligibility rules.</span7>
+<span8>CDS (Compliance Detection System): For logging and retroactive analysis of interactions.</span8>
+<span9>3. New Service: creator-connect-service</span9>
+<span10>Language: Go</span10>
+<span11>Responsibilities:</span11>
+<span12>Expose endpoints for creating, accepting, and declining mentorship requests.</span12>
+<span13>Contain all business logic for eligibility and connection state management.</span13>
+<span14>Log all state changes and interactions to the CDS for analysis.</span14>
+<span15>4. API Endpoints</span15>
+<span16>Endpoint: POST /v1/mentorship/request</span16>
+<span17>Description: Initiates a mentorship request from an established creator to an aspiring creator.</span17>
+<span18>Request Body:</span18>
+<span19>JSON</span19>
+<span20>{</span20>
+<span21>  "mentor_id": "string",</span21>
+<span22>  "mentee_id": "string",</span22>
+<span23>  "initial_message": "string"</span23>
+<span24>}</span24>
+<span25>Response (200 OK):</span25>
+<span26>JSON</span26>
+<span27>{</span27>
+<span28>  "request_status": "pending",</span28>
+<span29>  "connection_id": "uuid"</span29>
+<span30>}</span30>
+<span31>5. Data Models</span31>
+<span32>A new table, mentorship_connections, will be created to track the state of all connections.</span32>
+<span33>connection_id: UUID, Primary Key</span33>
+<span34>mentor_id: BIGINT, User ID of the mentor</span34>
+<span35>mentee_id: BIGINT, User ID of the mentee</span35>
+<span36>status: ENUM (PENDING, ACCEPTED, DECLINED)</span36>
+<span37>created_at: TIMESTAMP</span37>
+<span38>6. Safety & Moderation Implementation</span38>
+<span39>All messages sent within the mentorship chat will be routed through the standard direct-messaging-service pipeline. This means they will be subject to the existing profanity and hate-speech filters. All connection events (request, accept, decline) and subsequent message metadata will be logged to the CDS with the event name CreatorConnectInteraction. This will allow for retroactive analysis by the Trust & Safety team to identify patterns of abuse. The standard in-chat "Report" button will be available for users. Reports will be routed to the general moderation queue.</span39>
+<span40>7. Rollout Plan</span40>
+<span41>Phase 1: ShadowMode deployment. The service will process requests and log outcomes to CDS but will not create user-facing messages.</span41>
+<span42>Phase 2: Beta launch to 10% of eligible creators in the US and Canada. The rollout will be managed by GH (Geo-handler).</span42>
+<span43>Phase 3: Full global rollout, pending review of safety and engagement metrics.</span43>

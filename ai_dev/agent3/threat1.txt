@@ -1,0 +1,19 @@
+Threat Scenario
+Scenario ID: CC-VT-001
+Title: Weaponized Mentorship for Off-Platform Grooming
+Summary: A bad actor acquires an "Established Creator" account and uses the "Creator Connect" feature to bypass standard discovery protections. They initiate contact with a vulnerable minor under the guise of mentorship, quickly moving the conversation to an unmonitored, third-party platform for the purpose of grooming and coercion.
+
+Step-by-Step Attack Path:
+
+Actor Acquisition: A malicious actor purchases a dormant but verified account with 600,000 followers on the black market, instantly meeting the "Established Creator" criteria.
+
+Target Identification: The actor uses the "Discover Talent" feature, specifically searching for new accounts using hashtags like #newtotheapp and #teenactor. They identify a 14-year-old user in Florida whose bio expresses a desire to become famous.
+
+Initiate Contact: The actor sends a "Mentorship Request" through the "Creator Connect" feature. The initial message is carefully crafted to be encouraging and bypasses profanity filters: "Hey! I love your energy. I'm a verified creator and I think you have real talent. I'd love to mentor you and help you grow your channel. Let's connect!"
+
+Exploit Trust: The 14-year-old, seeing a message from a verified "million-follower" creator, is thrilled and immediately accepts the connection, opening a private Direct Message channel. No parental notification or consent is requested by the system.
+
+Move Off-Platform: After a few friendly messages, the actor says, "It's hard to talk strategy here. Let's switch to a private chat app like Discord/Telegram where we can really talk. Here's my username..."
+
+The Harm: Once on the unmonitored third-party app, the actor's behavior changes. They begin grooming the minor, requesting personal information (school, location), and eventually coercing them into creating and sending inappropriate content, which could constitute Child Sexual Abuse Material (CSAM).
+
