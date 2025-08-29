@@ -19,16 +19,34 @@ class Database:
 
     def save_message(self, message):
         return self.save_data("Message", {
-            "msg_id": self.get_next_id("Message", "msg_id"),
+            "msg_id": self.supabase.table("Message").select("id").order("id", desc=True).limit(1).execute() or 1,
             "created_at": self.get_current_timestamp(),
             "content": message
         })
         
-    def get_next_id(self, table, id):
-        response = self.supabase.table(table).select(id).order(id, desc=True).limit(1).execute()
-        if response.data:
-            return response.data[0][id] + 1
-        return 1
+    def save_article_definition(self, art_num, belongs_to, embedding, content, word):
+        return self.save_data("Article_Entry", {
+            "ent_id": self.supabase.table("Article_Entry").select("id").order("id", desc=True).limit(1).execute() or 1,
+            "content": content,
+            "word": word,
+            "art_num": art_num,
+            "belongs_to": belongs_to,
+            "embedding": embedding,
+            "type": "Definition"
+        })
+        
+    def save_article_document(self, art_num, belongs_to, embedding, type, content, word = None):
+        if type == "Definition":
+            return self.save_article_definition(art_num, belongs_to, embedding, content, word) if word else None
+        return self.save_data("Article_Entry", {
+            "ent_id": self.supabase.table("Article_Entry").select("ent_id").order("ent_id", desc=True).limit(1).execute() or 1,
+            "content": content,
+            "word": word,
+            "art_num": art_num,
+            "belongs_to": belongs_to,
+            "embedding": embedding,
+            "type": type
+        })
     
     def get_current_timestamp(self):
         from datetime import datetime
