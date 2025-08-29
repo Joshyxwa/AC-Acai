@@ -15,8 +15,11 @@ class Database:
         response = self.supabase.table(table).insert(data).execute()
         return response
 
-    def load_data(self, table, query):
-        response = self.supabase.table(table).select("*").eq("id", query).execute()
+    def load_data(self, table, query, **kwargs):
+        target = self.supabase.table(table).select("*").eq("id", query)
+        for key, value in kwargs.items():
+            target = target.eq(key, value)
+        response = target.execute()
         return response
     
     def get_conversation(self, conv_id = None):
@@ -108,23 +111,23 @@ class Database:
             "name": name
         })
 
-    def load_audit(self, audit_id):
-        return self.load_data("Audit", audit_id)
-    
-    def load_conversation(self, conv_id):
-        return self.load_data("Conversation", conv_id)
+    def load_audit(self, audit_id, **kwargs):
+        return self.load_data("Audit", audit_id, **kwargs)
 
-    def load_message(self, msg_id):
-        return self.load_data("Message", msg_id)
+    def load_conversation(self, conv_id, **kwargs):
+        return self.load_data("Conversation", conv_id, **kwargs)
 
-    def load_article(self, article_id):
-        return self.load_data("Article_Entry", article_id)
-    
-    def load_issue(self, issue_id):
-        return self.load_data("Issue", issue_id)
+    def load_message(self, msg_id, **kwargs):
+        return self.load_data("Message", msg_id, **kwargs)
 
-    def load_project(self, project_id):
-        return self.load_data("Project", project_id)
+    def load_article(self, article_id, **kwargs):
+        return self.load_data("Article_Entry", article_id, **kwargs)
+
+    def load_issue(self, issue_id, **kwargs):
+        return self.load_data("Issue", issue_id, **kwargs)
+
+    def load_project(self, project_id, **kwargs):
+        return self.load_data("Project", project_id, **kwargs)
 
     def get_next_id(self, table, id_field, minimum_value = 1):
         return self.supabase.table(table).select(id_field).order(id_field, desc=True).limit(1).execute() or minimum_value
