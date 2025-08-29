@@ -5,9 +5,9 @@ from supabase import create_client
 class Database:
     def __init__(self):
         load_dotenv("./secrets/.env.dev")
-        self.url = os.environ.get("SUPABASE_URL")
-        self.key = os.environ.get("SUPABASE_KEY")
-        self.supabase = create_client(self.url, self.key)
+        self.__URL = os.environ.get("SUPABASE_URL")
+        self.__KEY = os.environ.get("SUPABASE_KEY")
+        self.supabase = create_client(self.__URL, self.__KEY)
 
     def save_data(self, table, data):
         response = self.supabase.table(table).insert(data).execute()
