@@ -107,7 +107,25 @@ class Database:
             "description": description,
             "name": name
         })
-        
+
+    def load_audit(self, audit_id):
+        return self.load_data("Audit", audit_id)
+    
+    def load_conversation(self, conv_id):
+        return self.load_data("Conversation", conv_id)
+
+    def load_message(self, msg_id):
+        return self.load_data("Message", msg_id)
+
+    def load_article(self, article_id):
+        return self.load_data("Article_Entry", article_id)
+    
+    def load_issue(self, issue_id):
+        return self.load_data("Issue", issue_id)
+
+    def load_project(self, project_id):
+        return self.load_data("Project", project_id)
+
     def get_next_id(self, table, id_field, minimum_value = 1):
         return self.supabase.table(table).select(id_field).order(id_field, desc=True).limit(1).execute() or minimum_value
 
