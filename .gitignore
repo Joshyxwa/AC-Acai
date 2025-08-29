@@ -216,8 +216,3 @@ __marimo__/
 .streamlit/secrets.toml
 
 secrets
-
-# node
-node_modules
-build
-npm-debug.log

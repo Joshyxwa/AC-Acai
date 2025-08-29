@@ -1,0 +1,26 @@
+Product Requirements Document (PRD): Creator Connect
+Document ID: PRD-2025-48B Title: PRD: Creator Connect (V1) Author: Priya Singh (Product Manager) Stakeholders: Creator Growth Team, Community Safety, Legal Target Launch: Q2 2025
+1. Introduction & Problem Statement
+One of the biggest challenges for new creators is the "cold start" problem—gaining initial visibility and navigating the platform's complexities. This leads to high churn in the first 30 days. Simultaneously, our established creators have expressed a desire for more meaningful ways to engage with the community beyond content creation.
+"Creator Connect" aims to bridge this gap by creating a structured mentorship program. It will empower established creators to discover and guide promising new talent, fostering a more collaborative and supportive ecosystem. This will accelerate new creator growth and increase long-term retention for both cohorts.
+2. Goals & Success Metrics
+Primary Goal: Increase 30-day retention of new creators by 5% within two quarters of launch.
+Secondary Goal: Increase positive sentiment scores among established creators by 10%.
+Key Results (KRs):
+Achieve a 20% week-over-week growth in new mentorship connections initiated.
+At least 15% of new creators (under 10k followers) receive and accept a mentorship connection within their first month.
+Maintain a >99.9% success rate for connection-related API calls.
+Safety Metric: Zero confirmed instances of high-severity Community Guideline violations (e.g., harassment, grooming) originating from mentorship connections.
+3. User Stories & Personas
+Persona 1: The Aspiring Creator (Mei)
+As Mei, a new creator with 500 followers, I want to receive guidance from an experienced creator in my niche so I can learn how to make better content and grow my audience.
+Persona 2: The Established Creator (David)
+As David, a verified creator with 2M followers, I want to find and help promising new creators in my field to give back to the community and build my reputation as a leader.
+4. Feature Requirements
+FR-1: Mentor Eligibility Only "Established Creators" can initiate mentorship requests. Eligibility will be determined by a set of rules in the Spanner rule engine, initially defined as: Verified Status OR >500k Followers AND >1 year account age.
+FR-2: Connection & Communication Eligible mentors will have a new "Discover Talent" tab in their creator tools. Mentors can send a connection request, which includes a short introductory message. Aspiring creators will receive requests in a dedicated inbox. Once a request is accepted, a private, persistent chat thread is opened between the two creators using the existing Direct Messaging infrastructure.
+FR-3: Safety & Trust (Critical) The feature must be a safe and positive space. This is our top priority, especially given that many aspiring creators are teens. All interactions initiated through this feature must be subject to enhanced monitoring to prevent abuse. We must implement robust safeguards to prevent bad actors from exploiting this feature to contact minors inappropriately. User-facing reporting tools must be prominent within the mentorship chat.
+5. Out of Scope for V1
+Group mentorships or "Creator Houses."
+Monetisation of mentorship (paid advice, etc.).
+Mentee-initiated requests.
