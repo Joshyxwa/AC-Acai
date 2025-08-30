@@ -3,7 +3,7 @@ import re
 from dotenv import load_dotenv
 from typing import List, Dict, Tuple
 from supabase import create_client
-from Database import Database
+from first_model.database.Database import Database
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModel
 import torch

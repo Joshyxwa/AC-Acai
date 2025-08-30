@@ -8,9 +8,9 @@ lawyer = Law()
 attacker = Attacker()
 auditor = Auditor()
 
-def audit_project(project_id: int, database):
+def audit_project(project_id: int, database, bill="All"):
     doc_ids= database.load_document_ids(project_id=project_id)
-    ent_ids = lawyer.audit(doc_ids=doc_ids)
+    ent_ids = lawyer.audit(doc_ids=doc_ids, bill=bill)
     attack_scenarios = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=doc_ids[0], tdd_doc_id=doc_ids[1])
     audit_id = database.project_audit(project_id=project_id)
     for scenario in attack_scenarios["scenarios"]:
