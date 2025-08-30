@@ -6,11 +6,11 @@ from google import genai
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
-from Model import Model
 import vecs
-load_dotenv("../../secrets/.env.dev")
+import time
+load_dotenv("./secrets/.env.dev")
 
-class Auditor():
+class Law():
     def __init__(self):
         super().__init__()
         
@@ -22,7 +22,6 @@ class Auditor():
 
         model_name = "nlpaueb/legal-bert-base-uncased"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.embedding_model = AutoModel.from_pretrained(model_name).to(self.device)
 
@@ -43,7 +42,6 @@ class Auditor():
         with torch.no_grad():
             outputs = self.embedding_model(**inputs)
             embeddings = outputs.last_hidden_state.mean(dim=1)
-        print(embeddings.cpu().numpy().tolist())
         return embeddings.cpu().numpy().tolist()
 
     def __generate_hypothetical_document(self, query: str) -> str:
@@ -54,14 +52,35 @@ class Auditor():
             f"USER QUERY: \"{query}\"\n\n"
             "HYPOTHETICAL ARTICLE:"
         )
-        print("\n--- Generating Hypothetical Document ---")
-        response = self.llm_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        print("--- Generation Complete ---")
+
+        for attempt in range(5):
+            try:
+                print(f"Attempting to generate content (Attempt {attempt + 1}/{5})...")
+                # This is the line of code you want to retry
+                response = self.llm_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+                # If the call is successful, print a confirmation and exit the loop
+                print("✅ Success! Content generated.")
+                break
+            
+            # Catch the specific error for "service unavailable" or "resource exhausted".
+            # This is better than a generic 'except Exception'.
+            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+                print(f"⚠️ Error: {e}")
+                # If this is the last attempt, print a final failure message.
+                if attempt == 5 - 1:
+                    print("❌ All retries failed. The server may be busy. Please try again later.")
+                else:
+                    # Wait for a moment before the next attempt
+                    wait_time = 2 ** attempt  # This is exponential backoff
+                    print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
+                    time.sleep(wait_time)
         return response.text
 
     def __vector_search(self, embedding: List[float], top_k: int = 3) -> List[dict]:
         """Performs vector search using a Supabase RPC function."""
-        print("\n--- Performing Vector Search in Supabase ---")
         index_list = self.docs.query(
             data=embedding,              # required
             limit=3,                         # number of records to return
@@ -82,14 +101,12 @@ class Auditor():
         Audits multiple documents together by first synthesizing their content
         and then running the HyDE pipeline on the unified context.
         """
-        print(f"\n🚀 Starting combined audit for document IDs: {doc_ids}")
-        
+ 
         # 1. Fetch the content of all documents
         document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
         
         # 2. Synthesize the contents into a single description (NEW STEP)
         synthesized_context = self.__synthesize_documents(document_contents)
-        print(f"\nSynthesized Context: \"{synthesized_context[:200]}...\"")
         
         # 3. Create the initial query from the synthesized context
         initial_query = (
@@ -99,15 +116,12 @@ class Auditor():
         
         # 4. Generate the hypothetical document from this unified query
         hypothetical_doc = self.__generate_hypothetical_document(initial_query)
-        print(f"\nHypothetical Doc: \"{hypothetical_doc[:150]}...\"")
 
         # 5. Embed the hypothetical document
         query_embedding = self._embed_text(hypothetical_doc)[0]
 
         # 6. Search for relevant articles
         relevant_articles = self.__vector_search(embedding=query_embedding, top_k=top_k)
-
-        print("\n✅ Combined audit complete.")
         return relevant_articles
     
     def __synthesize_documents(self, contents: List[str]) -> str:
@@ -115,7 +129,6 @@ class Auditor():
         Uses the LLM to read multiple document contents and synthesize them
         into a single, coherent description.
         """
-        print("\n--- 🧠 Synthesizing content from multiple documents ---")
         
         # Prepare the documents for the prompt, clearly separating them
         formatted_docs = ""
@@ -130,8 +143,30 @@ class Auditor():
             "--- SYNTHESIZED DESCRIPTION ---"
         )
         
-        response = self.llm_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        print("--- Synthesis Complete ---")
+        for attempt in range(5):
+            try:
+                print(f"Attempting to generate content (Attempt {attempt + 1}/{5})...")
+                # This is the line of code you want to retry
+                response = self.llm_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+                # If the call is successful, print a confirmation and exit the loop
+                print("✅ Success! Content generated.")
+                break
+            
+            # Catch the specific error for "service unavailable" or "resource exhausted".
+            # This is better than a generic 'except Exception'.
+            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+                print(f"⚠️ Error: {e}")
+                # If this is the last attempt, print a final failure message.
+                if attempt == 5 - 1:
+                    print("❌ All retries failed. The server may be busy. Please try again later.")
+                else:
+                    # Wait for a moment before the next attempt
+                    wait_time = 2 ** attempt  # This is exponential backoff
+                    print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
+                    time.sleep(wait_time)
         return response.text
     
 # if __name__ == "__main__":
