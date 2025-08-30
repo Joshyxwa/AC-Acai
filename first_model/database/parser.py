@@ -130,13 +130,12 @@ class Parser():
             embedding = self.get_embedding(definition["def_content"])
             record = (
                 self.get_next_id(),
-                embedding,
+                embedding, {
                 "art_num": definition["art_num"],
                 "type": "Definition",
                 "belongs_to": self.title,
                 "contents": definition["def_content"],
-                "word": entry["word"],
-            )
+                "word": entry["word"],})
             records.append(record)
 
         for article in self.articles:
@@ -152,13 +151,12 @@ class Parser():
             embedding = self.get_embedding(article["content"])
             record = (
                 self.get_next_id(),
-                embedding,
+                embedding, {
                 "art_num": article["art_num"],
                 "type": "Law",
                 "belongs_to": self.title,
                 "contents": article["content"],
-                "word": None,
-            )
+                "word": None, })
             records.append(record)
 
         self.docs.upsert(records=records)
@@ -184,10 +182,10 @@ class Parser():
     def get_bill(self):
         return self.title
 
-
+"""
 if __name__ == "__main__":
     parser = Parser()
     parser.parse(file_path="bills/dtsa.txt")
-    parser.save_to_db()
+    #parser.save_to_db()
     parser.print_stuff()
-
+"""
