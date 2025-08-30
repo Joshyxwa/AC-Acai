@@ -1,8 +1,17 @@
 import os
 import json
 import torch
-from typing import List
+from typing import List, Union
 from google import genai
+try:
+    from google.api_core import exceptions as gcloud_exceptions
+except Exception:
+    class _Exc:
+        class ServiceUnavailable(Exception):
+            pass
+        class ResourceExhausted(Exception):
+            pass
+    gcloud_exceptions = _Exc()  # fallback so except clauses work even if package missing
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
@@ -36,7 +45,7 @@ class Law():
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
 
-    def _embed_text(self, text: str or List[str]) -> List[float]:
+    def _embed_text(self, text: Union[str, List[str]]) -> List[float]:
         """Generates embeddings for a given text or list of texts."""
         inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors='pt', max_length=512).to(self.device)
         with torch.no_grad():
@@ -52,11 +61,10 @@ class Law():
             f"USER QUERY: \"{query}\"\n\n"
             "HYPOTHETICAL ARTICLE:"
         )
-
+        response = None
         for attempt in range(5):
             try:
-                print(f"Attempting to generate content (Attempt {attempt + 1}/{5})...")
-                # This is the line of code you want to retry
+                print(f"Attempting to generate content (Attempt {attempt + 1}/5)...")
                 response = self.llm_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt
@@ -67,7 +75,7 @@ class Law():
             
             # Catch the specific error for "service unavailable" or "resource exhausted".
             # This is better than a generic 'except Exception'.
-            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+            except Exception as e:
                 print(f"⚠️ Error: {e}")
                 # If this is the last attempt, print a final failure message.
                 if attempt == 5 - 1:
@@ -77,7 +85,7 @@ class Law():
                     wait_time = 2 ** attempt  # This is exponential backoff
                     print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
                     time.sleep(wait_time)
-        return response.text
+        return response.text if response else ""
 
     def __vector_search(self, embedding: List[float], top_k: int = 3) -> List[dict]:
         """Performs vector search using a Supabase RPC function."""
@@ -142,22 +150,21 @@ class Law():
             f"{formatted_docs}"
             "--- SYNTHESIZED DESCRIPTION ---"
         )
-        
+        response = None
         for attempt in range(5):
             try:
-                print(f"Attempting to generate content (Attempt {attempt + 1}/{5})...")
-                # This is the line of code you want to retry
+                print(f"Attempting to generate content (Attempt {attempt + 1}/5)...")
                 response = self.llm_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
                 # If the call is successful, print a confirmation and exit the loop
                 print("✅ Success! Content generated.")
                 break
             
             # Catch the specific error for "service unavailable" or "resource exhausted".
             # This is better than a generic 'except Exception'.
-            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+            except Exception as e:
                 print(f"⚠️ Error: {e}")
                 # If this is the last attempt, print a final failure message.
                 if attempt == 5 - 1:
