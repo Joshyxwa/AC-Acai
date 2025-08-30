@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from first_model.database.Database import Database
 from first_model.io.IO import IO
 from first_model.model.Chat import Chat
+from first_model.database.parser import Parser
 from fastapi import UploadFile, File, Depends, Request
 from first_model.server.main import audit_project
 from fastapi import BackgroundTasks
 from first_model.model.Report import Report
+
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
@@ -291,6 +293,7 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
 #     print(documents)
 #     pass    
 
+
 # ---------- Endpoints ----------
 # @app.on_event("startup")
 # async def startup_event():
@@ -387,7 +390,11 @@ async def add_law(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         text = contents.decode("utf-8")
-        print(text)
+        Parser.parse(content=text)
+        bill = Parser.get_bill()
+        ids = dc.get_project_ids()
+        for id in ids:
+            audit_project(id, dc,  bill)
         return {"ok": True, "message": "File uploaded and printed successfully."}
     except Exception as e:
         return {"ok": False, "message": f"Failed to process file: {str(e)}"}

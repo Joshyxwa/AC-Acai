@@ -1,6 +1,8 @@
 import os
+import re
 import json
 import torch
+import torch.nn.functional as F
 from typing import List, Union
 from google import genai
 try:
@@ -15,12 +17,16 @@ except Exception:
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
+from sklearn.metrics import precision_score, recall_score, f1_score
 import vecs
-import time
+import pandas as pd
+import itertools
+
 load_dotenv("./secrets/.env.dev")
+import time
 
 class Law():
-    def __init__(self):
+    def __init__(self, bill="All"):
         super().__init__()
         
         # --- LLM and Embedding Model Setup ---
@@ -44,6 +50,7 @@ class Law():
         vx = vecs.create_client(DB_CONNECTION)
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
+        self.bill = bill
 
     def _embed_text(self, text: Union[str, List[str]]) -> List[float]:
         """Generates embeddings for a given text or list of texts."""
@@ -89,11 +96,18 @@ class Law():
 
     def __vector_search(self, embedding: List[float], top_k: int = 3) -> List[dict]:
         """Performs vector search using a Supabase RPC function."""
-        index_list = self.docs.query(
-            data=embedding,              # required
-            limit=3,                         # number of records to return
-            # filters={"year": {"$eq": 2012}}, # metadata filters
-        )
+        if self.bill == "All":
+            index_list = self.docs.query(
+                data=embedding,              # required
+                limit=3,                         # number of records to return
+                filters={"type": {"$eq": "Law"}},
+            ) 
+        else:
+            index_list = self.docs.query(
+                data=embedding,
+                limit=3,
+                filters={"belongs_to": {"$eq": self.bill}, "type": {"$eq": "Law"}},
+            )
         return index_list
     
     def __fetch_document_content(self, doc_id: int) -> str:
@@ -174,23 +188,160 @@ class Law():
                     print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
                     time.sleep(wait_time)
         return response.text
+
+    def evaluate(self):
+        def find_best_matching_article(name, threshold=0.70, k=3):
+            # Perform semantic search on article collection
+            emb_name = self._embed_text(name)
+
+            results = self.docs.query(
+                data=[emb_name],   # your raw article name
+                limit=k,       # how many matches to return
+                include_value=True,   # include the stored article name
+                include_metadata=True # include article metadata (id, art_num, belongs_to)
+            )
+
+            # results is a list of [(id, score, value, metadata), ...]
+            best_match = results[0][0]
+            best_score = results[0][1]
+
+            if best_score >= threshold:
+                return best_match
+            return None
+
+
+        def extract_ground_truth_ids(sample_output):
+            match = re.search(r"Relevant law\(s\):\s*(.*?)\s*(?:—|$)", sample_output)
+            if not match:
+                return []
+            
+            raw_list = match.group(1)
+            names = [a.strip() for a in raw_list.split(",")]
+
+            ids = []
+            for name in names:
+                matched_id = find_best_matching_article(name)
+                if matched_id:
+                    ids.append(matched_id)
+            return ids
+
+        def evaluate_single_document(document_text, sample_output):
+            expected_ids = set(extract_ground_truth_ids(sample_output))
     
-# if __name__ == "__main__":
-#     print("--- Initializing Auditor ---")
-#     auditor = Auditor()
-    
-#     # --- Provide the list of document IDs to check TOGETHER ---
-#     # These documents will be read and analyzed as a single unit.
-#     combined_document_ids = [1, 2] 
-    
-#     try:
-#         # Call the new combined audit method
-#         final_results = auditor.audit(doc_ids=combined_document_ids)
+            # Predicted IDs from audit agent
+            predicted_ids = set(self.audit(document_text))
+
+            # Build label space: union of all IDs that appear in either prediction or ground truth
+            all_ids = list(expected_ids | predicted_ids)
+
+            # Create binary labels for each article in label space
+            y_true = [1 if i in expected_ids else 0 for i in all_ids]
+            y_pred = [1 if i in predicted_ids else 0 for i in all_ids]
+
+            # Calculate metrics using sklearn
+            precision = precision_score(y_true, y_pred, zero_division=0)
+            recall = recall_score(y_true, y_pred, zero_division=0)
+            f1 = f1_score(y_true, y_pred, zero_division=0)
+
+            return {
+                "expected_ids": list(expected_ids),
+                "predicted_ids": list(predicted_ids),
+                "precision": precision,
+                "recall": recall,
+                "f1": f1
+            }
+
+
+
+        df = pd.read_csv("standata.csv")
+        row = df.iloc[59]
+        document_text = str(row["feature_name"]) + " " + str(row["feature_description"])
+
+        # Evaluate just that one row
+        result = evaluate_single_document(document_text, row["sample_output"])
+        print("Single Row Evaluation:")
+        print(result)
+
+    def eval_hyde(self, doc_ids: List[int], num):
+        def compute_total_similarity(embeddings: list[list[float]]) -> float:
+            """
+            Computes the overall similarity of a list of embeddings using cosine similarity.
+            Returns the average similarity as a percentage (0-100).
+
+            Args:
+                embeddings (list[list[float]]): List of embeddings, each embedding is a list of floats.
+
+            Returns:
+                float: Average similarity percentage across all unique embedding pairs.
+            """
+            # Convert list to tensor
+            embeddings_tensor = torch.tensor(embeddings, dtype=torch.float32)
+
+            # Normalize embeddings to unit vectors
+            embeddings_tensor = F.normalize(embeddings_tensor, p=2, dim=1)
+
+            # Compute cosine similarity matrix
+            similarity_matrix = torch.matmul(embeddings_tensor, embeddings_tensor.T)
+
+            # Extract upper-triangle values (unique pairs only, no duplicates, no self-comparisons)
+            n = similarity_matrix.shape[0]
+            upper_tri_indices = torch.triu_indices(n, n, offset=1)
+            similarities = similarity_matrix[upper_tri_indices[0], upper_tri_indices[1]]
+
+            # Convert to percentage [0,100]
+            total_similarity_percentage = ((similarities.mean().item() + 1) / 2) * 100
+
+            return total_similarity_percentage
         
-#         print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
-#         print(final_results)
+        document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
+
+        hydes = []
+        for i in range(num):
+            # 2. Synthesize the contents into a single description (NEW STEP)
+            synthesized_context = self.__synthesize_documents(document_contents)
+            print(f"\nSynthesized Context: \"{synthesized_context[:200]}...\"")
+            
+            # 3. Create the initial query from the synthesized context
+            initial_query = (
+                f"Are any of the legal articles relevant to the feature described in the following synthesized summary: {synthesized_context} "
+                "If so, which articles?"
+            )
+            
+            # 4. Generate the hypothetical document from this unified query
+            hypothetical_doc = self.__generate_hypothetical_document(initial_query)
+            print(f"\nHypothetical Doc: \"{hypothetical_doc[:150]}...\"")
+
+            # 5. Embed the hypothetical document
+            query_embedding = self._embed_text(hypothetical_doc)[0]
+            hydes.append(query_embedding)
+
+        similarity = compute_total_similarity(hydes)
+        print(f"Total similarity between different hyde documents: {similarity:.2f}%")
         
-#     except Exception as e:
-#         print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
-#         print(f"Error Type: {type(e).__name__}")
-#         print(f"Error Details: {e}")
+"""
+if __name__ == "__main__":
+#   print("--- Initializing Auditor ---")
+#   auditor = Auditor()
+    law = Law()
+    
+    # --- Provide the list of document IDs to check TOGETHER ---
+    # These documents will be read and analyzed as a single unit.
+    combined_document_ids = [1, 2] 
+    
+    try:
+        # Call the new combined audit method
+        final_results = law.audit(doc_ids=combined_document_ids)
+        
+        print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
+        print(final_results)
+
+        print("--- Evaluation document similarity ---")
+        law.eval_hyde(doc_ids=combined_document_ids, num=10)
+        #print("--- Evaluating agent against synthatic data ---")
+        #auditor.evaluate()
+        
+    except Exception as e:
+        print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Details: {e}")
+"""
