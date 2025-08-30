@@ -6,11 +6,10 @@ from google import genai
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
-from Model import Model
 import vecs
-load_dotenv("../../secrets/.env.dev")
+load_dotenv("./secrets/.env.dev")
 
-class Auditor():
+class Law():
     def __init__(self):
         super().__init__()
         

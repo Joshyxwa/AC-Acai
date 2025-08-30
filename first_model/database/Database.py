@@ -2,14 +2,14 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 
-class Database:
+class Database():
     def __init__(self, conv_id = None):
         load_dotenv("./secrets/.env.dev")
         self.__URL = os.environ.get("SUPABASE_URL")
         self.__KEY = os.environ.get("SUPABASE_KEY")
         self.supabase = create_client(self.__URL, self.__KEY)
     
-        self.conv_id = self.get_conversation(conv_id)
+        # self.conv_id = self.get_conversation(conv_id)/
     
     def save_data(self, table, data):
         response = self.supabase.table(table).insert(data).execute()
@@ -135,3 +135,11 @@ class Database:
     def get_current_timestamp(self):
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def load_document_ids(self, project_id: int):
+        print(project_id)
+        target = self.supabase.table("Document").select("doc_id").eq("project_id", project_id)
+        response = target.execute()
+        doc_ids = [row['doc_id'] for row in response.data]
+        return doc_ids
+    
