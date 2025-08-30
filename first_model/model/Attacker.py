@@ -204,7 +204,7 @@ class Attacker():
         raw_text = resp.content[0].text
         data = self._load_json_or_explain(raw_text)
         bundle = self._validate_bundle_or_explain(data, max_n)
-        return bundle.model_dump_json(indent=2)
+        return bundle.model_dump()
 
 
 

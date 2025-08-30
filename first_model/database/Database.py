@@ -143,3 +143,33 @@ class Database():
         doc_ids = [row['doc_id'] for row in response.data]
         return doc_ids
     
+    def project_audit(self, project_id: int):
+        response = self.supabase.table("Audit").insert({"project_id": project_id, "status": "in_progess"}).execute()
+        print(response.data)
+        return response.data[0]["audit_id"]
+    
+    def create_issue(self, audit_id: int, issue_description: str, ent_id: int, status: str = "open", evidence: dict = None, qn: str = None):
+        response = self.supabase.table("Issue").insert({
+            "audit_id": audit_id,
+            "issue_description": issue_description,
+            "ent_id": ent_id,
+            "status": status,
+            "evidence": evidence,
+            "clarification_qn": qn
+        }).execute()
+        return response.data[0]["issue_id"]
+    
+    def create_conversation(self, audit_id: int, issue_id: int):
+        response = self.supabase.table("Conversation").insert({
+            "audit_id": audit_id,
+            "issue_id": issue_id
+        }).execute()
+        return response.data[0]["conv_id"]
+    
+    def send_first_message(self, conv_id: int, role: str, content: str):
+        response = self.supabase.table("Message").insert({
+            "conv_id": conv_id,
+            "type": role,
+            "content": content
+        }).execute()
+        return response.data[0]["msg_id"]
