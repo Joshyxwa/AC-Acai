@@ -92,30 +92,31 @@ class Auditor():
         response_object = json.loads(response.content[0].text)
         return response_object
     
-if __name__ == "__main__":
-    print("--- Initializing Auditor Test Case ---")
-    auditor = Auditor()
+# if __name__ == "__main__":
+
+    # print("--- Initializing Auditor Test Case ---")
+    # auditor = Auditor()
     
-    # --- DEFINE YOUR TEST INPUTS HERE ---
-    # These should be REAL IDs from your Supabase tables.
-    # The list should contain one PRD and one TDD document ID.
-    document_ids_to_test = [1, 2] 
+    # # --- DEFINE YOUR TEST INPUTS HERE ---
+    # # These should be REAL IDs from your Supabase tables.
+    # # The list should contain one PRD and one TDD document ID.
+    # document_ids_to_test = [1, 2] 
     
-    # A list of legal article IDs to check against.
-    article_ids_to_test = [101, 102] 
+    # # A list of legal article IDs to check against.
+    # article_ids_to_test = [101, 102] 
     
-    try:
-        print(f"\n--- Starting test run ---")
-        # Call the main audit method
-        analysis_result = auditor.audit(
-            doc_ids=document_ids_to_test,
-            ent_ids=article_ids_to_test
-        )
+    # try:
+    #     print(f"\n--- Starting test run ---")
+    #     # Call the main audit method
+    #     analysis_result = auditor.audit(
+    #         doc_ids=document_ids_to_test,
+    #         ent_ids=article_ids_to_test
+    #     )
         
-        print("\n\n--- ✅ FINAL ANALYSIS RESULT ---")
-        print(analysis_result)
+    #     print("\n\n--- ✅ FINAL ANALYSIS RESULT ---")
+    #     print(analysis_result)
         
-    except Exception as e:
-        print(f"\n\n--- ❌ AN ERROR OCCURRED ---")
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {e}")
+    # except Exception as e:
+    #     print(f"\n\n--- ❌ AN ERROR OCCURRED ---")
+    #     print(f"Error Type: {type(e).__name__}")
+    #     print(f"Error Details: {e}")
