@@ -18,9 +18,10 @@ interface Comment {
 
 interface Highlight {
   id: string;
-  start: number;
-  end: number;
-  text: string;
+  highlighting: Array<{ start: number; end: number }>;
+  reason?: string;
+  clarification_qn?: string;
+  text?: string;
   comments: Comment[];
 }
 
@@ -82,15 +83,17 @@ JSON
     highlights: [
       {
         id: "highlight-1",
-        start: 658,
-        end: 784,
-        text: "The service validates mentor eligibility against the Spanner rule engine",
+        highlighting: [
+          { start: 658, end: 784 },
+          { start: 850, end: 890 }
+        ],
+        reason: "The service validates mentor eligibility against the Spanner rule engine",
+        clarification_qn: "The PRD mentions 'robust safeguards to prevent bad actors from exploiting this feature to contact minors inappropriately' but doesn't specify how the system will detect and prevent malicious actors from creating multiple fake verified accounts or engaging in systematic targeting of young creators. What specific technical controls are planned to address coordinated predatory behavior across multiple mentor accounts?",
         comments: [
           {
             id: "comment-1",
             author: "GeoCompliance AI",
             timestamp: "2 hours ago",
-            // content: "⚠️ Geographic Compliance Issue: This eligibility validation may need to comply with regional mentorship regulations in the EU under Digital Services Act. Consider implementing region-specific validation rules.",
             content: "The proposed Creator Connect feature lacks critical safeguards to prevent predatory interactions with minors. Specifically, there are no explicit age verification mechanisms, parental consent requirements, or robust off-platform communication prevention strategies that would block a malicious actor from exploiting the mentorship feature to groom a vulnerable minor.",
             type: "system" as const
           }
@@ -98,9 +101,11 @@ JSON
       },
       {
         id: "highlight-2", 
-        start: 1015,
-        end: 1108,
-        text: "user-profile-service: To fetch follower counts, account age, and verification status",
+        highlighting: [
+          { start: 1015, end: 1108 }
+        ],
+        reason: "Privacy concerns with user profile data access",
+        clarification_qn: "What specific consent mechanisms will be implemented to comply with GDPR and CCPA requirements when accessing user profile data for mentorship eligibility?",
         comments: [
           {
             id: "comment-2",
@@ -117,6 +122,23 @@ JSON
             type: "user" as const
           }
         ]
+      },
+      {
+        id: "highlight-3",
+        highlighting: [
+          { start: 1050, end: 1150 }
+        ],
+        reason: "Security audit requirement for data access patterns",
+        clarification_qn: "How will the system log and audit access to sensitive user profile data to comply with SOX and security audit requirements?",
+        comments: [
+          {
+            id: "comment-4",
+            author: "Security Team",
+            timestamp: "45 minutes ago",
+            content: "This data access pattern needs comprehensive audit logging. We should implement detailed access logs including timestamp, requesting service, user ID, and data fields accessed.",
+            type: "system" as const
+          }
+        ]
       }
     ]
   }
@@ -124,6 +146,7 @@ JSON
 
 export const DocumentViewer = ({ documentId, projectId }: DocumentViewerProps) => {
   const [activeComment, setActiveComment] = useState<string | null>(null);
+  const [selectedComment, setSelectedComment] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [document, setDocument] = useState<DocumentData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -230,19 +253,101 @@ export const DocumentViewer = ({ documentId, projectId }: DocumentViewerProps) =
     }));
   };
 
+  const scrollToComment = (highlightId: string) => {
+    // Use requestAnimationFrame to ensure DOM has updated after state change
+    requestAnimationFrame(() => {
+      const commentElement = globalThis.document.getElementById(`comment-${highlightId}`);
+      const commentsContainer = globalThis.document.querySelector('.comments-container');
+      
+      if (commentElement && commentsContainer) {
+        const containerRect = commentsContainer.getBoundingClientRect();
+        const elementRect = commentElement.getBoundingClientRect();
+        
+        // Calculate scroll position to show comment near the top with some padding
+        // Add 20px padding from the top of the scrollable area
+        const offsetFromTop = 20;
+        const scrollTop = commentsContainer.scrollTop + (elementRect.top - containerRect.top) - offsetFromTop;
+        
+        commentsContainer.scrollTo({
+          top: Math.max(0, scrollTop), // Ensure we don't scroll to negative values
+          behavior: 'smooth'
+        });
+      }
+    });
+  };
+
   const renderContentWithHighlights = () => {
     const { content } = doc;
-    let lastIndex = 0;
     const elements: JSX.Element[] = [];
     let elementKey = 0;
 
-    // Sort highlights by start position
-    const sortedHighlights = [...highlights].sort((a, b) => a.start - b.start);
+    // Filter highlights based on selected comment
+    const visibleHighlights = selectedComment 
+      ? highlights.filter(h => h.id === selectedComment)
+      : highlights;
 
-    sortedHighlights.forEach((highlight) => {
-      // Add text before highlight
-      if (lastIndex < highlight.start) {
-        const beforeText = content.slice(lastIndex, highlight.start);
+    // Create a list of all highlight ranges with their IDs
+    const ranges: Array<{ start: number; end: number; highlightId: string; rangeIndex: number }> = [];
+    
+    visibleHighlights.forEach((highlight) => {
+      highlight.highlighting.forEach((range, rangeIndex) => {
+        ranges.push({
+          start: range.start,
+          end: range.end,
+          highlightId: highlight.id,
+          rangeIndex
+        });
+      });
+    });
+
+    // Sort ranges by start position
+    ranges.sort((a, b) => a.start - b.start);
+
+    // Merge overlapping ranges to handle multiple comments on same text
+    const mergedRanges: Array<{ 
+      start: number; 
+      end: number; 
+      highlightIds: string[]; 
+      isFirst: Record<string, boolean>;
+    }> = [];
+
+    ranges.forEach((range) => {
+      // Check if this range overlaps with any existing merged range
+      let merged = false;
+      for (const mergedRange of mergedRanges) {
+        if (range.start < mergedRange.end && range.end > mergedRange.start) {
+          // Overlapping - merge them
+          mergedRange.start = Math.min(mergedRange.start, range.start);
+          mergedRange.end = Math.max(mergedRange.end, range.end);
+          if (!mergedRange.highlightIds.includes(range.highlightId)) {
+            mergedRange.highlightIds.push(range.highlightId);
+            mergedRange.isFirst[range.highlightId] = range.rangeIndex === 0;
+          }
+          merged = true;
+          break;
+        }
+      }
+      
+      if (!merged) {
+        // No overlap - create new merged range
+        mergedRanges.push({
+          start: range.start,
+          end: range.end,
+          highlightIds: [range.highlightId],
+          isFirst: { [range.highlightId]: range.rangeIndex === 0 }
+        });
+      }
+    });
+
+    // Sort merged ranges by start position
+    mergedRanges.sort((a, b) => a.start - b.start);
+
+    let lastIndex = 0;
+
+    mergedRanges.forEach((mergedRange) => {
+      // Add text before highlight range
+      if (lastIndex < mergedRange.start) {
+        const beforeText = content.slice(lastIndex, mergedRange.start);
         elements.push(
           <span key={elementKey++} className="whitespace-pre-wrap">
             {beforeText}
@@ -250,21 +355,52 @@ export const DocumentViewer = ({ documentId, projectId }: DocumentViewerProps) =
         );
       }
 
-      // Add highlighted text
+      // Add highlighted text range
+      const highlightText = content.slice(mergedRange.start, mergedRange.end);
+      const hasMultipleComments = mergedRange.highlightIds.length > 1;
+      const isActive = mergedRange.highlightIds.some(id => activeComment === id);
+      const primaryHighlightId = mergedRange.highlightIds[0];
+      const firstHighlightId = mergedRange.highlightIds.find(id => mergedRange.isFirst[id]) || primaryHighlightId;
+
       elements.push(
         <span
-          key={highlight.id}
-          id={`highlight-${highlight.id}`}
-          className={`bg-yellow-200 hover:bg-yellow-300 cursor-pointer px-1 rounded transition-colors border-l-2 ${
-            activeComment === highlight.id ? 'border-l-blue-500 bg-yellow-300' : 'border-l-transparent'
+          key={`merged-${mergedRange.highlightIds.join('-')}-${mergedRange.start}`}
+          id={`highlight-${firstHighlightId}`}
+          className={`cursor-pointer px-1 rounded transition-colors border-l-2 ${
+            hasMultipleComments 
+              ? `bg-orange-200 hover:bg-orange-300 ${isActive ? 'border-l-blue-500 bg-orange-300' : 'border-l-orange-400'}` 
+              : `bg-yellow-200 hover:bg-yellow-300 ${isActive ? 'border-l-blue-500 bg-yellow-300' : 'border-l-transparent'}`
           }`}
-          onClick={() => setActiveComment(activeComment === highlight.id ? null : highlight.id)}
+          title={hasMultipleComments ? `${mergedRange.highlightIds.length} comments on this text` : undefined}
+          onClick={() => {
+            let targetHighlightId = primaryHighlightId;
+            
+            if (hasMultipleComments) {
+              // Cycle through highlights if multiple comments tag the same text
+              const currentIndex = mergedRange.highlightIds.findIndex(id => id === activeComment);
+              const nextIndex = (currentIndex + 1) % mergedRange.highlightIds.length;
+              const nextHighlightId = mergedRange.highlightIds[nextIndex];
+              setActiveComment(activeComment === nextHighlightId ? null : nextHighlightId);
+              targetHighlightId = nextHighlightId;
+            } else {
+              setActiveComment(activeComment === primaryHighlightId ? null : primaryHighlightId);
+              targetHighlightId = primaryHighlightId;
+            }
+            
+            // Scroll to the currently active comment
+            scrollToComment(targetHighlightId);
+          }}
         >
-          {highlight.text}
+          {highlightText}
+          {hasMultipleComments && (
+            <span className="ml-1 text-xs bg-orange-400 text-white rounded-full px-1 leading-none">
+              {mergedRange.highlightIds.length}
+            </span>
+          )}
         </span>
       );
 
-      lastIndex = highlight.end;
+      lastIndex = mergedRange.end;
     });
 
     // Add remaining text
@@ -301,6 +437,19 @@ export const DocumentViewer = ({ documentId, projectId }: DocumentViewerProps) =
                 </>
               )}
             </div>
+            {selectedComment && (
+              <div className="mt-3 flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                <span className="text-blue-700">
+                  Showing highlights for selected comment only
+                </span>
+                <button
+                  onClick={() => setSelectedComment(null)}
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Document Content */}
@@ -316,7 +465,9 @@ export const DocumentViewer = ({ documentId, projectId }: DocumentViewerProps) =
       <SideComments 
         highlights={highlights}
         activeComment={activeComment}
+        selectedComment={selectedComment}
         onCommentClick={setActiveComment}
+        onCommentSelect={setSelectedComment}
         onAddComment={addComment}
         onAddApiResponse={addApiResponse}
         projectId={projectId}

@@ -66,13 +66,27 @@ export const addComment = (data: {
   body: JSON.stringify(data),
 });
 
-export const addLaw = (data: {
-  article_number: string;
-  type: 'recital' | 'law' | 'definition';
-  belongs_to: string;
-  contents: string;
-  word?: string | null;
-}) => apiCall('/add_law', {
-  method: 'POST',
-  body: JSON.stringify(data),
-});
+export const addLaw = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const url = `${API_BASE_URL}/add_law`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { ok: false, message: errorText || `Upload failed: ${response.status}` };
+    }
+    
+    const result = await response.json();
+    return { ok: true, data: result };
+  } catch (error) {
+    console.error('Upload error:', error);
+    return { ok: false, message: 'Upload failed. Please try again.' };
+  }
+};

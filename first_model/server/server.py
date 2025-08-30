@@ -3,13 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
-from ..database.Database import Database
-from ..io.IO import IO
+from first_model.database.Database import Database
+from first_model.io.IO import IO
+from first_model.model.Chat import Chat
 from fastapi import UploadFile, File, Depends, Request
 from fastapi import BackgroundTasks
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
+ch = Chat()
 
 # --- CORS (adjust origins as needed) ---
 app.add_middleware(
@@ -20,8 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- Dummy Data Stores (commented out) ----------
-'''
+# ---------- Dummy Data Stores ----------
 projects = [
     {
         "id": "1",
@@ -173,7 +174,6 @@ JSON
 }
 
 laws = [] # temporary storage
-'''
 
 # ---------- Pydantic Models ----------
 class ProjectRow(BaseModel):
@@ -221,7 +221,7 @@ class ProjectDetails(BaseModel):
     documents: List[DocumentRow]
 
 class HighlightActionRequest(BaseModel):
-    highlight_id: str = Field(..., alias="highlight-id")
+    highlight_id: int = Field(..., alias="highlight-id")
     document_id: str = Field(..., alias="document-id")
     project_id: str = Field(..., alias="project-id")
     user_response: str
@@ -237,12 +237,6 @@ class Law(BaseModel):
     contents: str
     word: Optional[str] = None  # only required if type=definition
 
-class AuditRunIn(BaseModel):
-    project_id: int
-    max_scenarios: int = 3
-    create_audit: Optional[bool] = False
-    async_run: Optional[bool] = False
-
 # ---------- Helpers ----------
 def _now_hhmm() -> str:
     # "Just now" is requested for the dummy; we’ll still compute id from epoch ms
@@ -252,39 +246,34 @@ def _epoch_ms_str() -> str:
     return str(int(datetime.now(tz=timezone.utc).timestamp() * 1000))
 
 def _get_project_or_404(project_id: str) -> Dict:
-    io = getattr(app.state, "io", None)
-    if not io:
-        raise HTTPException(status_code=500, detail="IO not initialized")
     try:
         project_id_int = int(project_id)
-        res = io.get_project_with_documents(project_id_int)
-        if not res.get("ok"):
-            raise HTTPException(status_code=404, detail=res.get("error") or "Project not found")
-        if not res.get("data"):
+        result = dc.get_project_with_documents(project_id=project_id_int)
+        if result is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        return res["data"]
+        return result
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project_id format")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-def _get_document_or_404(project_id: str, document_id: str) -> Dict:
-    io = getattr(app.state, "io", None)
-    if not io:
-        raise HTTPException(status_code=500, detail="IO not initialized")
+def _get_document_or_404(project_id, document_id: str) -> Dict:
+    result = dc.load_document_with_highlighting(int(project_id), int(document_id))
+
     try:
-        pid = int(project_id)
-        did = int(document_id)
-        res = io.load_document_with_highlighting(pid, did)
-        if not res.get("ok"):
-            raise HTTPException(status_code=404, detail=res.get("error") or "Document not found")
-        if not res.get("data"):
+        result = dc.load_document_with_highlighting(int(project_id), int(document_id))
+        # print(result)
+        if result is None:
             raise HTTPException(status_code=404, detail="Document not found")
-        return res["data"]
+        return result
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project_id or document_id format")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Document not found")
 
 def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
     for h in doc.get("highlights", []):
-        if str(h.get("id")) == str(highlight_id):
+        if h.get("id") == highlight_id:
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
 
@@ -294,10 +283,10 @@ def audit_project(project_id: int):
     pass    
 
 # ---------- Endpoints ----------
-@app.on_event("startup")
-async def startup_event():
-    # Single IO instance for the app lifetime
-    app.state.io = IO()
+# @app.on_event("startup")
+# async def startup_event():
+#     # Single IO instance for the app lifetime
+#     app.state.io = IO()
 
 def get_io(request: Request) -> IO:
     io = getattr(request.app.state, "io", None)
@@ -309,16 +298,9 @@ def get_io(request: Request) -> IO:
 def health():
     return {"ok": True}
 
-@app.get("/status")
-def status(io: IO = Depends(get_io)):
-    return io.status()
-
 @app.get("/check_projects", response_model=List[ProjectRow])
-def check_projects(io: IO = Depends(get_io)):
-    res = io.list_projects()
-    if not res.get("ok"):
-        raise HTTPException(status_code=500, detail=res.get("error") or "Failed to load projects")
-    return res.get("data") or []
+def check_projects():
+    return dc.load_all_projects()
 
 @app.get("/get_project", response_model=ProjectDetails)
 def get_project(project_id: str):
@@ -327,63 +309,54 @@ def get_project(project_id: str):
 
 @app.get("/get_document", response_model=DocumentPayload)
 def get_document(project_id: str, document_id: str):
+    # for demo we don't cross-validate that document belongs to project,
+    # but you can enforce that if you store per-project docs
     doc = _get_document_or_404(project_id, document_id)
     return doc
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)
 def get_highlight_response(req: HighlightActionRequest):
-    _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.project_id, req.document_id)
-    hl = _find_highlight_or_404(doc, req.highlight_id)
+    # _ = _get_project_or_404(req.project_id)
+    # doc = _get_document_or_404(req.document_id)
+    # hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    # TODO: Append a system response (dummy) and also echo it back
-    generated_id = f"response-{_epoch_ms_str()}"
-    response = {
-        "id": generated_id,
-        "author": "GeoCompliance AI",
-        "timestamp": _now_hhmm(),
-        "content": (
-            f'Thank you for your input. Based on your comment "{req.user_response}", '
-            "I recommend reviewing the latest GDPR guidelines section 4.2 for data processing compliance. "
-            "This should address your concerns about user consent flows."
-        ),
-        "type": "system",
-    }
-    hl.setdefault("comments", []).append(response)
-    return response
+    # # Append a system response (dummy) and also echo it back
+    # generated_id = f"response-{_epoch_ms_str()}"
+    # response = {
+    #     "id": generated_id,
+    #     "author": "GeoCompliance AI",
+    #     "timestamp": _now_hhmm(),
+    #     "content": (
+    #         f'Thank you for your input. Based on your comment "{req.user_response}", '
+    #         "I recommend reviewing the latest GDPR guidelines section 4.2 for data processing compliance. "
+    #         "This should address your concerns about user consent flows."
+    #     ),
+    #     "type": "system",
+    # }
+    # hl.setdefault("comments", []).append(response)
+    response = ch.adjudicate(int(req.highlight_id))
+    print(dc.get_last_message_by_content(response))
+    return dc.get_last_message_by_content(response) 
 
 @app.post("/add_comment")
 def add_comment(req: HighlightActionRequest):
-    _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.project_id, req.document_id)
-    hl = _find_highlight_or_404(doc, req.highlight_id)
+    # _ = _get_project_or_404(req.project_id)
+    # doc = _get_document_or_404(req.document_id)
+    # hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    comment = {
-        "id": f"comment-{_epoch_ms_str()}",
-        "author": req.author or "User",
-        "timestamp": _now_hhmm(),
-        "content": req.user_response,
-        "type": "user",
-    }
-    hl.setdefault("comments", []).append(comment)
+    # comment = {
+    #     "id": f"comment-{_epoch_ms_str()}",
+    #     "author": req.author or "User",
+    #     "timestamp": _now_hhmm(),
+    #     "content": req.user_response,
+    #     "type": "user",
+    # }
+    # hl.setdefault("comments", []).append(comment)
+    dc.add_message_for_issue(int(req.highlight_id), req.user_response, author_type="user")
     return {"ok": True, "message": "Comment added"}
 
 @app.post("/add_law")
-def add_law(law: Law, io: IO = Depends(get_io)):
-    """Accepts JSON payload for adding a law/recital/definition (used by frontend)."""
-    if law.type == "definition" and not law.word:
-        return {"ok": False, "message": "Word must be provided for definition type laws."}
-    if law.type == "definition":
-        res = io.save_law_definition(art_num=law.article_number, belongs_to=law.belongs_to, content=law.contents, word=law.word)  # type: ignore[arg-type]
-    else:
-        res = io.save_law_document(art_num=law.article_number, belongs_to=law.belongs_to, type=law.type, contents=law.contents, word=law.word)
-    if not res.get("ok"):
-        raise HTTPException(status_code=500, detail=res.get("error") or "Failed to save law")
-    return {"ok": True, "message": "Law added successfully", "law": law.dict()}
-
-@app.post("/add_law_file")
-async def add_law_file(file: UploadFile = File(...)):
-    """Optional file-upload endpoint for adding laws from a .txt file."""
+async def add_law(file: UploadFile = File(...)):
     if file.content_type != "text/plain":
         return {"ok": False, "message": "Only .txt files are accepted."}
     try:
@@ -439,63 +412,8 @@ def root():
         "/get_document?project_id=1&document_id=tdd-1",
         "/get_highlight_response",
         "/add_comment",
-    "/add_law",
-    "/add_law_file",
         "/health",
-        "/status",
-        "/chatbox/create",
-        "/chatbox/{conv_id}/history",
-        "/chatbox/message",
-        "/audit/run",
+    "/chatbox/create",
+    "/chatbox/{conv_id}/history",
+    "/chatbox/message",
     ]}
-
-@app.post("/audit/run")
-def audit_run(payload: AuditRunIn, io: IO = Depends(get_io), background_tasks: BackgroundTasks = None):
-    # If requested, create an Audit row first and run with status updates
-    if payload.create_audit:
-        created = io.create_audit(project_id=payload.project_id, status="pending")
-        if not created.get("ok"):
-            raise HTTPException(status_code=500, detail=created.get("error") or "Failed to create audit")
-        audit_obj = created.get("data") or {}
-        audit_id = audit_obj.get("audit_id") if isinstance(audit_obj, dict) else None
-        if audit_id is None:
-            # Try to look up the most recent audit for project as a fallback
-            try:
-                rows = io.database.supabase.table("Audit").select("audit_id").eq("project_id", payload.project_id).order("created_at", desc=True).limit(1).execute().data
-                audit_id = (rows[0]["audit_id"] if rows else None)
-            except Exception:
-                pass
-        if audit_id is None:
-            raise HTTPException(status_code=500, detail="Failed to determine audit_id")
-        if payload.async_run:
-            # Queue background execution and return immediately
-            if background_tasks is None:
-                raise HTTPException(status_code=500, detail="Background tasks not available")
-            background_tasks.add_task(io.run_audit_pipeline_for_audit_and_update, audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
-            return {"started": True, "audit_id": audit_id, "status": "in_progress"}
-        res = io.run_audit_pipeline_for_audit_and_update(audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
-    else:
-        if payload.async_run:
-            # Ensure an audit exists to track status, then run in background
-            created = io.create_audit(project_id=payload.project_id, status="pending")
-            if not created.get("ok"):
-                raise HTTPException(status_code=500, detail=created.get("error") or "Failed to create audit")
-            audit_obj = created.get("data") or {}
-            audit_id = audit_obj.get("audit_id") if isinstance(audit_obj, dict) else None
-            if audit_id is None:
-                # Fallback: lookup most recent audit for project
-                try:
-                    rows = io.database.supabase.table("Audit").select("audit_id").eq("project_id", payload.project_id).order("created_at", desc=True).limit(1).execute().data
-                    audit_id = (rows[0]["audit_id"] if rows else None)
-                except Exception:
-                    pass
-            if audit_id is None:
-                raise HTTPException(status_code=500, detail="Failed to determine audit_id for async run")
-            if background_tasks is None:
-                raise HTTPException(status_code=500, detail="Background tasks not available")
-            background_tasks.add_task(io.run_audit_pipeline_for_audit_and_update, audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
-            return {"started": True, "audit_id": audit_id, "status": "in_progress"}
-        res = io.run_audit_pipeline(project_id=payload.project_id, max_scenarios=payload.max_scenarios)
-    if not res.get("ok"):
-        raise HTTPException(status_code=500, detail=res.get("error") or "Audit pipeline failed")
-    return res.get("data")

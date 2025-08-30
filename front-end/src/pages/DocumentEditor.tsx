@@ -7,23 +7,26 @@ import { DocumentViewer } from "@/components/DocumentViewer";
 import { ChatbotSidebar } from "@/components/ChatbotSidebar";
 import { getProject } from "@/lib/api";
 
-interface Document {
-  id: string;
-  title: string;
+interface DocumentRow {
+  doc_id: number;
+  created_at: string;
   type: string;
-  status: "flagged" | "review" | "compliant";
+  content: string;
+  version: number;
+  project_id: number;
+  content_span?: string | null;
 }
 
 interface Project {
   id: string;
   title: string;
-  documents: Document[];
+  documents: DocumentRow[];
 }
 
 const DocumentEditor = () => {
   const navigate = useNavigate();
   const { projectId } = useParams();
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<number | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,16 +37,40 @@ const DocumentEditor = () => {
     id: projectId || "1",
     title: "Feature Authentication System",
     documents: [
-      { id: "tdd-1", title: "Technical Design Document", type: "TDD", status: "flagged" as const },
-      { id: "prd-1", title: "Product Requirements", type: "PRD", status: "review" as const },
-      { id: "security-1", title: "Security Assessment", type: "Security", status: "compliant" as const }
+      { 
+        doc_id: 1, 
+        created_at: "2025-08-30T10:00:00Z", 
+        type: "TDD", 
+        content: "Technical Design Document content...", 
+        version: 1, 
+        project_id: parseInt(projectId || "1"),
+        content_span: null 
+      },
+      { 
+        doc_id: 2, 
+        created_at: "2025-08-30T11:00:00Z", 
+        type: "PRD", 
+        content: "Product Requirements Document content...", 
+        version: 1, 
+        project_id: parseInt(projectId || "1"),
+        content_span: null 
+      },
+      { 
+        doc_id: 3, 
+        created_at: "2025-08-30T12:00:00Z", 
+        type: "Security", 
+        content: "Security Assessment Document content...", 
+        version: 1, 
+        project_id: parseInt(projectId || "1"),
+        content_span: null 
+      }
     ]
   };
 
   const fetchProject = async () => {
     if (!projectId) {
       setProject(fallbackProject);
-      setSelectedDocument("tdd-1");
+      setSelectedDocument(1);
       setIsLoading(false);
       return;
     }
@@ -56,14 +83,14 @@ const DocumentEditor = () => {
       setProject(data);
       // Auto-select first document if available
       if (data.documents && data.documents.length > 0) {
-        setSelectedDocument(data.documents[0].id);
+        setSelectedDocument(data.documents[0].doc_id);
       }
     } catch (err) {
       console.error('Error fetching project:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch project');
       // Use fallback data on error
       setProject(fallbackProject);
-      setSelectedDocument("tdd-1");
+      setSelectedDocument(1);
     } finally {
       setIsLoading(false);
     }
@@ -154,7 +181,7 @@ const DocumentEditor = () => {
         <div className="flex-1 overflow-hidden">
           {selectedDocument ? (
             <DocumentViewer 
-              documentId={selectedDocument} 
+              documentId={selectedDocument.toString()} 
               projectId={projectId || "1"}
             />
           ) : (
@@ -171,7 +198,7 @@ const DocumentEditor = () => {
         {isChatOpen && (
           <ChatbotSidebar 
             projectId={project.id}
-            documentId={selectedDocument}
+            documentId={selectedDocument?.toString() || null}
             onClose={() => setIsChatOpen(false)}
           />
         )}

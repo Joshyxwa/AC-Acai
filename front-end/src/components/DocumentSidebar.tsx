@@ -1,40 +1,25 @@
 import { cn } from "@/lib/utils";
 import { FileText, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
-interface Document {
-  id: string;
-  title: string;
+interface DocumentRow {
+  doc_id: number;
+  created_at: string;
   type: string;
-  status: "compliant" | "flagged" | "review";
+  content: string;
+  version: number;
+  project_id: number;
+  content_span?: string | null;
 }
 
 interface DocumentSidebarProps {
-  documents: Document[];
-  selectedDocument: string;
-  onSelectDocument: (documentId: string) => void;
+  documents: DocumentRow[];
+  selectedDocument: number | null;
+  onSelectDocument: (documentId: number) => void;
 }
 
 export const DocumentSidebar = ({ documents, selectedDocument, onSelectDocument }: DocumentSidebarProps) => {
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "compliant":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "flagged":
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      case "review":
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <FileText className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "compliant": return "border-l-green-500";
-      case "flagged": return "border-l-red-500";
-      case "review": return "border-l-yellow-500";
-      default: return "border-l-muted";
-    }
+  const getDocumentTitle = (doc: DocumentRow) => {
+    return `${doc.type} Document v${doc.version}`;
   };
 
   return (
@@ -49,13 +34,13 @@ export const DocumentSidebar = ({ documents, selectedDocument, onSelectDocument 
       <div className="p-2">
         {documents.map((doc) => (
           <button
-            key={doc.id}
-            onClick={() => onSelectDocument(doc.id)}
+            key={doc.doc_id}
+            onClick={() => onSelectDocument(doc.doc_id)}
             className={cn(
               "w-full text-left p-3 rounded-lg border-l-4 mb-2 transition-all hover:bg-accent/50",
-              selectedDocument === doc.id 
+              selectedDocument === doc.doc_id 
                 ? "bg-accent border-l-primary shadow-sm" 
-                : `${getStatusColor(doc.status)} bg-background hover:bg-accent/30`
+                : "border-l-muted bg-background hover:bg-accent/30"
             )}
           >
             <div className="flex items-start justify-between gap-2">
@@ -63,14 +48,16 @@ export const DocumentSidebar = ({ documents, selectedDocument, onSelectDocument 
                 <div className="flex items-center gap-2 mb-1">
                   <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm font-medium text-foreground truncate">
-                    {doc.title}
+                    {getDocumentTitle(doc)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                     {doc.type}
                   </span>
-                  {getStatusIcon(doc.status)}
+                  <span className="text-xs text-muted-foreground">
+                    v{doc.version}
+                  </span>
                 </div>
               </div>
             </div>

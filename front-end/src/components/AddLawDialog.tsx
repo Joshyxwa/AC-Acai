@@ -1,76 +1,54 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { addLaw } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
-const addLawSchema = z.object({
-  article_number: z.string().min(1, "Article number is required"),
-  type: z.enum(["recital", "law", "definition"], {
-    required_error: "Please select a type",
-  }),
-  belongs_to: z.string().min(1, "Belongs to field is required"),
-  contents: z.string().min(1, "Contents are required"),
-  word: z.string().optional(),
-}).refine((data) => {
-  if (data.type === "definition" && (!data.word || data.word.trim() === "")) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Word must be provided for definition type laws",
-  path: ["word"],
-});
-
-type AddLawFormData = z.infer<typeof addLawSchema>;
 
 export const AddLawDialog = () => {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
 
-  const form = useForm<AddLawFormData>({
-    resolver: zodResolver(addLawSchema),
-    defaultValues: {
-      article_number: "",
-      type: undefined,
-      belongs_to: "",
-      contents: "",
-      word: "",
-    },
-  });
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === "text/plain") {
+      setSelectedFile(file);
+    } else {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a .txt file",
+        variant: "destructive",
+      });
+      event.target.value = "";
+    }
+  };
 
-  const watchedType = form.watch("type");
+  const onSubmit = async () => {
+    if (!selectedFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a .txt file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const onSubmit = async (data: AddLawFormData) => {
     setIsSubmitting(true);
     
     try {
-      const payload = {
-        article_number: data.article_number,
-        type: data.type,
-        belongs_to: data.belongs_to,
-        contents: data.contents,
-        word: data.type === "definition" ? data.word || null : null,
-      };
-
-      const response = await addLaw(payload);
+      const response = await addLaw(selectedFile);
       
       if (response.ok) {
         toast({
           title: "Success",
           description: "Law added successfully",
         });
-        form.reset();
+        setSelectedFile(null);
         setOpen(false);
       } else {
         toast({
@@ -107,120 +85,47 @@ export const AddLawDialog = () => {
           </DialogDescription>
         </DialogHeader>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="article_number"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Article Number</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="e.g., 13-63-101(2)" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select law type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="recital">Recital</SelectItem>
-                      <SelectItem value="law">Law</SelectItem>
-                      <SelectItem value="definition">Definition</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="belongs_to"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Belongs To</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="e.g., S.B. 152 (2023)" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {watchedType === "definition" && (
-              <FormField
-                control={form.control}
-                name="word"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Word (Definition)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="e.g., minor" 
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="law-file">Upload Law File</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="law-file"
+                type="file"
+                accept=".txt"
+                onChange={handleFileChange}
+                disabled={isSubmitting}
+                className="file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-2 file:py-1 file:text-sm file:text-primary-foreground"
               />
+              <Upload className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {selectedFile && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {selectedFile.name}
+              </p>
             )}
+          </div>
 
-            <FormField
-              control={form.control}
-              name="contents"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Contents</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Enter the full content of the law article..."
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setOpen(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Adding..." : "Add Law"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setOpen(false);
+                setSelectedFile(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={onSubmit}
+              disabled={isSubmitting || !selectedFile}
+            >
+              {isSubmitting ? "Uploading..." : "Upload Law"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -15,23 +15,26 @@ interface Comment {
 
 interface Highlight {
   id: string;
-  start: number;
-  end: number;
-  text: string;
+  highlighting: Array<{ start: number; end: number }>;
+  reason?: string;
+  clarification_qn?: string;
+  text?: string;
   comments: Comment[];
 }
 
 interface SideCommentsProps {
   highlights: Highlight[];
   activeComment: string | null;
+  selectedComment: string | null;
   onCommentClick: (highlightId: string | null) => void;
+  onCommentSelect: (highlightId: string | null) => void;
   onAddComment: (highlightId: string, content: string) => void;
   onAddApiResponse: (highlightId: string, response: Comment) => void;
   projectId: string;
   documentId: string;
 }
 
-export const SideComments = ({ highlights, activeComment, onCommentClick, onAddComment, onAddApiResponse, projectId, documentId }: SideCommentsProps) => {
+export const SideComments = ({ highlights, activeComment, selectedComment, onCommentClick, onCommentSelect, onAddComment, onAddApiResponse, projectId, documentId }: SideCommentsProps) => {
   const [newComments, setNewComments] = useState<Record<string, string>>({});
   const [showingReplyFor, setShowingReplyFor] = useState<string | null>(null);
   const [replyingToComment, setReplyingToComment] = useState<string | null>(null);
@@ -49,138 +52,31 @@ export const SideComments = ({ highlights, activeComment, onCommentClick, onAddC
     }
   }, []);
 
-  // Sync scroll position with document
+  // Simple effect to handle comment visibility
   useEffect(() => {
-    const documentContainer = documentScrollRef.current;
-    if (!documentContainer || !commentsContainerRef.current) return;
+    // No complex positioning - just use normal document flow
+  }, [highlights, selectedComment]);
 
-    const handleDocumentScroll = () => {
-      const commentPositions: Array<{ id: string; top: number; height: number }> = [];
-      
-      highlights.forEach(highlight => {
-        const highlightElement = document.getElementById(`highlight-${highlight.id}`);
-        const commentElement = commentRefs.current[highlight.id];
-        
-        if (highlightElement && commentElement && commentsContainerRef.current) {
-          const documentRect = documentContainer.getBoundingClientRect();
-          const highlightRect = highlightElement.getBoundingClientRect();
-          const commentsRect = commentsContainerRef.current.getBoundingClientRect();
-          
-          // Check if highlight is visible in the document viewport
-          const isVisible = highlightRect.bottom >= documentRect.top && 
-                           highlightRect.top <= documentRect.bottom;
-          
-          if (!isVisible) {
-            // Hide comment if highlight is not visible
-            commentElement.style.display = 'none';
-            return;
-          }
-          
-          // Show comment and calculate position
-          commentElement.style.display = 'block';
-          const commentHeight = commentElement.offsetHeight || 200; // fallback height
-          
-          // Center comment with highlighted text
-          const highlightCenter = highlightRect.top + (highlightRect.height / 2) - commentsRect.top;
-          const commentCenter = commentHeight / 2;
-          const relativeTop = Math.max(0, highlightCenter - commentCenter);
-          
-          commentPositions.push({
-            id: highlight.id,
-            top: relativeTop,
-            height: commentHeight
-          });
-        }
-      });
-      
-      // Sort by position and prevent overlaps
-      commentPositions.sort((a, b) => a.top - b.top);
-      let currentTop = 0;
-      
-      commentPositions.forEach(({ id, top, height }, index) => {
-        const commentElement = commentRefs.current[id];
-        if (commentElement) {
-          // Ensure minimum spacing between comments
-          const adjustedTop = Math.max(currentTop, top);
-          commentElement.style.transition = 'top 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-          commentElement.style.top = `${adjustedTop}px`;
-          currentTop = adjustedTop + height + 16; // 16px gap between comments
-        }
-      });
-    };
-
-    documentContainer.addEventListener('scroll', handleDocumentScroll);
-    window.addEventListener('resize', handleDocumentScroll);
-    
-    // Initial positioning
-    setTimeout(handleDocumentScroll, 100);
-
-    return () => {
-      documentContainer.removeEventListener('scroll', handleDocumentScroll);
-      window.removeEventListener('resize', handleDocumentScroll);
-    };
-  }, [highlights]);
-
-  // Position comments based on highlighted text position
+  // Handle selected comment isolation - show only selected comment when one is chosen
   useEffect(() => {
-    const positionComments = () => {
-      const documentContainer = documentScrollRef.current;
-      if (!documentContainer || !commentsContainerRef.current) return;
-
-      const commentPositions: Array<{ id: string; top: number; height: number }> = [];
-      
+    if (selectedComment) {
+      // When a comment is selected, show only that comment
       highlights.forEach(highlight => {
-        const highlightElement = document.getElementById(`highlight-${highlight.id}`);
         const commentElement = commentRefs.current[highlight.id];
-        
-        if (highlightElement && commentElement) {
-          const documentRect = documentContainer.getBoundingClientRect();
-          const highlightRect = highlightElement.getBoundingClientRect();
-          const commentsRect = commentsContainerRef.current!.getBoundingClientRect();
-          
-          // Check visibility
-          const isVisible = highlightRect.bottom >= documentRect.top && 
-                           highlightRect.top <= documentRect.bottom;
-          
-          if (!isVisible) {
-            commentElement.style.display = 'none';
-            return;
-          }
-          
-          commentElement.style.display = 'block';
-          const commentHeight = commentElement.offsetHeight || 200;
-          
-          // Center comment with highlighted text
-          const highlightCenter = highlightRect.top + (highlightRect.height / 2) - commentsRect.top;
-          const commentCenter = commentHeight / 2;
-          const relativeTop = Math.max(0, highlightCenter - commentCenter);
-          
-          commentPositions.push({
-            id: highlight.id,
-            top: relativeTop,
-            height: commentHeight
-          });
-        }
-      });
-      
-      // Prevent overlaps
-      commentPositions.sort((a, b) => a.top - b.top);
-      let currentTop = 0;
-      
-      commentPositions.forEach(({ id, top, height }) => {
-        const commentElement = commentRefs.current[id];
         if (commentElement) {
-          const adjustedTop = Math.max(currentTop, top);
-          commentElement.style.transition = 'top 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-          commentElement.style.top = `${adjustedTop}px`;
-          currentTop = adjustedTop + height + 16;
+          commentElement.style.display = highlight.id === selectedComment ? 'block' : 'none';
         }
       });
-    };
-
-    const timeoutId = setTimeout(positionComments, 50);
-    return () => clearTimeout(timeoutId);
-  }, [highlights, activeComment]);
+    } else {
+      // Show all comments in normal flow
+      highlights.forEach(highlight => {
+        const commentElement = commentRefs.current[highlight.id];
+        if (commentElement) {
+          commentElement.style.display = 'block';
+        }
+      });
+    }
+  }, [selectedComment, highlights]);
 
   const handleAddComment = (highlightId: string) => {
     const content = newComments[highlightId];
@@ -205,6 +101,9 @@ export const SideComments = ({ highlights, activeComment, onCommentClick, onAddC
 
     try {
       let apiResponseData;
+
+      // Update highlights with new comments
+      onAddComment(highlightId, replyText); // Add user reply
       
       try {
         apiResponseData = await getHighlightResponse({
@@ -233,9 +132,6 @@ export const SideComments = ({ highlights, activeComment, onCommentClick, onAddC
         content: replyText,
         type: "user" as const
       };
-
-      // Update highlights with new comments
-      onAddComment(highlightId, replyText); // Add user reply
       
       // Add AI response after a short delay
       setTimeout(() => {
@@ -253,22 +149,37 @@ export const SideComments = ({ highlights, activeComment, onCommentClick, onAddC
   };
 
   return (
-    <div className="w-80 border-l bg-card relative h-full overflow-hidden">
+    <div className="w-80 border-l bg-card relative h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 bg-card border-b p-4 z-10">
+      <div className="bg-card border-b p-4 flex-shrink-0">
         <h3 className="font-medium text-foreground">Comments</h3>
         <p className="text-sm text-muted-foreground">Click highlights to view</p>
       </div>
 
       {/* Comments Container */}
-      <div ref={commentsContainerRef} className="relative p-4 space-y-4">
+      <div 
+        ref={commentsContainerRef} 
+        className="comments-container relative flex-1 p-4 overflow-y-auto"
+        style={{ minHeight: 0, maxHeight: '100%' }}
+      >
         {highlights.map((highlight) => (
           <div
             key={highlight.id}
+            id={`comment-${highlight.id}`}
             ref={(el) => (commentRefs.current[highlight.id] = el)}
-            className={`absolute right-4 w-72 transition-all duration-300 ease-out ${
+            className={`w-full mb-6 transition-all duration-300 ease-out cursor-pointer ${
               activeComment === highlight.id ? 'opacity-100 z-20' : 'opacity-70 z-10'
+            } ${
+              selectedComment === highlight.id ? 'ring-2 ring-blue-500' : ''
             }`}
+            onClick={() => {
+              // Toggle comment selection for isolated highlighting
+              if (selectedComment === highlight.id) {
+                onCommentSelect(null);
+              } else {
+                onCommentSelect(highlight.id);
+              }
+            }}
             style={{
               transform: 'translateZ(0)', // Enable hardware acceleration
               transition: 'top 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out, transform 0.3s ease-out'
@@ -276,13 +187,33 @@ export const SideComments = ({ highlights, activeComment, onCommentClick, onAddC
           >
             <div className={`bg-background border rounded-lg shadow-sm ${
               activeComment === highlight.id ? 'border-blue-300 shadow-md' : 'border-border'
+            } ${
+              selectedComment === highlight.id ? 'border-blue-500 shadow-lg' : ''
             }`}>
               {/* Highlight Preview */}
-              <div className="p-3 border-b bg-yellow-50">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Referenced text:</p>
-                <p className="text-xs text-foreground italic line-clamp-2">
-                  "{highlight.text}"
-                </p>
+              <div className={`p-3 border-b ${
+                selectedComment === highlight.id ? 'bg-blue-50' : 'bg-yellow-50'
+              }`}>
+                {highlight.reason && (
+                  <div className="mb-2">
+                    <p className="text-xs text-muted-foreground font-medium mb-1">Reason:</p>
+                    <p className="text-xs text-foreground">{highlight.reason}</p>
+                  </div>
+                )}
+                {highlight.clarification_qn && (
+                  <div className="mb-2">
+                    <p className="text-xs text-muted-foreground font-medium mb-1">Clarification Question:</p>
+                    <p className="text-xs text-foreground italic">{highlight.clarification_qn}</p>
+                  </div>
+                )}
+                {highlight.text && (
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-1">Referenced text:</p>
+                    <p className="text-xs text-foreground italic line-clamp-2">
+                      "{highlight.text}"
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Comments */}
