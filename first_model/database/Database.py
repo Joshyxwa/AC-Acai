@@ -436,3 +436,13 @@ class Database():
             "created_at": self.get_current_timestamp(),
         }).execute()
         return response.data[0]["msg_id"]
+
+    def get_project_ids():
+        response = self.supabase.table("Project").select("project_id").execute()
+
+        if response.data:
+            project_ids = [row["project_id"] for row in response.data]
+            return project_ids
+        else:
+            return None
+
