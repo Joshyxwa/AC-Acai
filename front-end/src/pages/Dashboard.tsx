@@ -5,14 +5,14 @@ import { Plus, FileText, Calendar, Users, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { checkProjects } from "@/lib/api";
 import { AddLawDialog } from "@/components/AddLawDialog";
+import { formatDistanceToNow, parseISO } from "date-fns";
 
 interface Project {
-  id: string;
-  title: string;
-  lastModified: string;
-  documents: number;
-  collaborators: number;
+  project_id: number;
+  name: string;
+  created_at: string;
   status: string;
+  description: string;
 }
 
 const Dashboard = () => {
@@ -24,36 +24,32 @@ const Dashboard = () => {
   // Fallback mock data
   const fallbackProjects: Project[] = [
     {
-      id: "1",
-      title: "Feature Authentication System",
-      lastModified: "2 hours ago",
-      documents: 3,
-      collaborators: 5,
-      status: "In Review"
+      project_id: 1,
+      name: "Feature Authentication System",
+      created_at: "2025-08-28 15:32:47.729288+00",
+      status: "In Review",
+      description: "Authentication system compliance review"
     },
     {
-      id: "2", 
-      title: "Payment Gateway Integration",
-      lastModified: "1 day ago",
-      documents: 5,
-      collaborators: 3,
-      status: "Flagged"
+      project_id: 2, 
+      name: "Payment Gateway Integration",
+      created_at: "2025-08-28 15:32:47.729288+00",
+      status: "Flagged",
+      description: "Payment processing compliance assessment"
     },
     {
-      id: "3",
-      title: "User Data Analytics Feature",
-      lastModified: "3 days ago", 
-      documents: 2,
-      collaborators: 4,
-      status: "Compliant"
+      project_id: 3,
+      name: "User Data Analytics Feature",
+      created_at: "2025-08-28 15:32:47.729288+00",
+      status: "Compliant",
+      description: "Data analytics compliance verification"
     },
     {
-      id: "4",
-      title: "Social Media Integration",
-      lastModified: "1 week ago",
-      documents: 4,
-      collaborators: 2, 
-      status: "In Review"
+      project_id: 4,
+      name: "Social Media Integration",
+      created_at: "2025-08-28 15:32:47.729288+00",
+      status: "In Review",
+      description: "Social media integration review"
     }
   ];
 
@@ -80,9 +76,9 @@ const Dashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Compliant": return "text-green-600";
-      case "Flagged": return "text-red-600";
-      case "In Review": return "text-yellow-600";
+      case "Completed": return "text-green-600";
+      case "New": return "text-red-600";
+      case "Ongoing": return "text-yellow-600";
       default: return "text-muted-foreground"; 
     }
   };
@@ -147,9 +143,9 @@ const Dashboard = () => {
             {/* Existing Projects */}
             {projects.map((project) => (
               <Card 
-                key={project.id}
+                key={project.project_id}
                 className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/project/${project.id}`)}
+                onClick={() => navigate(`/project/${project.project_id}`)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -158,22 +154,20 @@ const Dashboard = () => {
                       {project.status}
                     </span>
                   </div>
-                  <CardTitle className="text-lg leading-tight">{project.title}</CardTitle>
+                  <CardTitle className="text-lg leading-tight">{project.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      <span>Modified {project.lastModified}</span>
+                      <span>
+                        Created {formatDistanceToNow(
+                          parseISO(project.created_at.replace(" ", "T").replace(/\.\d+/, "") + "Z"),
+                          { addSuffix: true }
+                        )}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      <span>{project.documents} documents</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <span>{project.collaborators} collaborators</span>
-                    </div>
+                    <p className="text-sm">{project.description}</p>
                   </div>
                 </CardContent>
               </Card>

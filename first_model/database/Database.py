@@ -9,18 +9,18 @@ class Database:
         self.__KEY = os.environ.get("SUPABASE_KEY")
         self.supabase = create_client(self.__URL, self.__KEY)
     
-        self.conv_id = self.get_conversation(conv_id)
+        # self.conv_id = self.get_conversation(conv_id)
     
     def save_data(self, table, data):
         response = self.supabase.table(table).insert(data).execute()
         return response
 
-    def load_data(self, table, query, **kwargs):
-        target = self.supabase.table(table).select("*").eq("id", query)
+    def load_data(self, table, **kwargs):
+        target = self.supabase.table(table).select("*")
         for key, value in kwargs.items():
             target = target.eq(key, value)
         response = target.execute()
-        return response
+        return response.data
     
     def get_conversation(self, conv_id = None):
         if self.supabase.table("Conversation").select("*").eq("conv_id", conv_id).execute():
@@ -127,7 +127,10 @@ class Database:
         return self.load_data("Issue", issue_id, **kwargs)
 
     def load_project(self, project_id, **kwargs):
-        return self.load_data("Project", project_id, **kwargs)
+        return self.load_data("Project", project_id=project_id, **kwargs)
+
+    def load_all_projects(self):
+        return self.load_data("Project")
 
     def get_next_id(self, table, id_field, minimum_value = 1):
         return self.supabase.table(table).select(id_field).order(id_field, desc=True).limit(1).execute() or minimum_value

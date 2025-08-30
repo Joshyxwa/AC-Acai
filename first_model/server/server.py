@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
+from database.Database import Database
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
+dc = Database()
 
 # --- CORS (adjust origins as needed) ---
 app.add_middleware(
@@ -177,6 +179,13 @@ class ProjectSummary(BaseModel):
     collaborators: int
     status: Literal["In Review", "Flagged", "Compliant"]
 
+class ProjectRow(BaseModel):
+    project_id: int
+    created_at: str
+    status: str
+    description: str
+    name: str
+
 class Comment(BaseModel):
     id: str
     author: str
@@ -247,9 +256,9 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
 def health():
     return {"ok": True}
 
-@app.get("/check_projects", response_model=List[ProjectSummary])
+@app.get("/check_projects", response_model=List[ProjectRow])
 def check_projects():
-    return projects
+    return dc.load_all_projects()
 
 @app.get("/get_project", response_model=ProjectDetails)
 def get_project(project_id: str):
