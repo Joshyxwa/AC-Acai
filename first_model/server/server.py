@@ -8,6 +8,7 @@ from first_model.io.IO import IO
 from first_model.model.Chat import Chat
 from fastapi import UploadFile, File, Depends, Request
 from first_model.server.main import audit_project
+from fastapi import BackgroundTasks
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()

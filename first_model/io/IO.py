@@ -5,7 +5,6 @@ from typing import Optional, Dict, Any, List
 from ..database.Database import Database
 from ..model.Auditor import Auditor
 from ..model.Attacker import Attacker
-from enum import Enum
 from .Chatbox import Chatbox
 
 class IO:

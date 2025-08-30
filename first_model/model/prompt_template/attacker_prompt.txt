@@ -9,9 +9,13 @@ Task — Attack scenarios
   - "potential_violations": string[]
   - "jurisdictions": string[] (law names, e.g., "EU Digital Services Act")
   - "law_citations": int[] (ent_id values relied on)
-  - "rationale": string (why this matters for THIS PRD)
+  - "rationale": string (why this matters for THIS PRD; if you relied on TDD details, mention them here)
   - "prd_spans": int[] (0-based PRD line indices, matching the <spanN> in PRD_SPANS)
-- Ground each scenario in the PRD lines you cite in "prd_spans".
+
+- Use PRD as the requirements source of truth and TDD as the implementation/design source:
+  - Ground each scenario in the PRD lines you cite in "prd_spans". ONLY cite PRD lines in "prd_spans" (schema requires PRD indices only).
+  - Use TDD to uncover implementation-specific attack surfaces or PRD↔TDD mismatches, and reflect that analysis in "rationale".
+
 - Make scenarios DISTINCT (no near-duplicates).
 
 Self-check before returning:
@@ -33,6 +37,11 @@ PRD (raw text for readability):
 <<<PRD>>>
 {prd_text}
 <<<END PRD>>>
+
+TDD (raw text):
+<<<TDD>>>
+{tdd_text}
+<<<END TDD>>>
 
 Legal/Definition Context (each item has ent_id for citation):
 {relevant_law}
