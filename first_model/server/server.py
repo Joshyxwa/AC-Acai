@@ -17,6 +17,7 @@ app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
 ch = Chat()
 rp = Report()
+parser = Parser()
 
 # --- CORS (adjust origins as needed) ---
 app.add_middleware(
@@ -390,7 +391,7 @@ async def add_law(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         text = contents.decode("utf-8")
-        Parser.parse(content=text)
+        parser.parse(content=text)
         bill = Parser.get_bill()
         ids = dc.get_project_ids()
         for id in ids:
