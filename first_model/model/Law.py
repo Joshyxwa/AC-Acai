@@ -24,10 +24,9 @@ import itertools
 
 load_dotenv("./secrets/.env.dev")
 import time
-load_dotenv("./secrets/.env.dev")
 
 class Law():
-    def __init__(self):
+    def __init__(self, bill="All"):
         super().__init__()
         
         # --- LLM and Embedding Model Setup ---
@@ -51,6 +50,7 @@ class Law():
         vx = vecs.create_client(DB_CONNECTION)
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
+        self.bill = bill
 
     def _embed_text(self, text: Union[str, List[str]]) -> List[float]:
         """Generates embeddings for a given text or list of texts."""
@@ -96,11 +96,18 @@ class Law():
 
     def __vector_search(self, embedding: List[float], top_k: int = 3) -> List[dict]:
         """Performs vector search using a Supabase RPC function."""
-        index_list = self.docs.query(
-            data=embedding,              # required
-            limit=3,                         # number of records to return
-            # filters={"year": {"$eq": 2012}}, # metadata filters
-        )
+        if self.bill == "All":
+            index_list = self.docs.query(
+                data=embedding,              # required
+                limit=3,                         # number of records to return
+                filters={"type": {"$eq": "Law"}},
+            ) 
+        else:
+            index_list = self.docs.query(
+                data=embedding,
+                limit=3,
+                filters={"belongs_to": {"$eq": self.bill}, "type": {"$eq": "Law"}},
+            )
         return index_list
     
     def __fetch_document_content(self, doc_id: int) -> str:
