@@ -9,7 +9,8 @@ class Database():
         self.__KEY = os.environ.get("SUPABASE_KEY")
         self.supabase = create_client(self.__URL, self.__KEY)
     
-        # self.conv_id = self.get_conversation(conv_id)/
+        # Optional default conversation scope (not required by IO/Chatbox path)
+        self.conv_id = conv_id
     
     def save_data(self, table, data):
         response = self.supabase.table(table).insert(data).execute()
@@ -22,16 +23,36 @@ class Database():
         response = target.execute()
         return response
     
-    def get_conversation(self, conv_id = None):
-        if self.supabase.table("Conversation").select("*").eq("conv_id", conv_id).execute():
-            return conv_id
-        conv_id = self.get_next_id("Conversation", "conv_id")
-        self.save_data("Conversation", {
-            "conv_id": conv_id,
-            "created_at": self.get_current_timestamp(),
-            "audit_id": None
-        })
-        return conv_id
+    def get_conversation(self, conv_id: int | None = None) -> int:
+        """Resolve an existing conversation id or create a new conversation row.
+        If conv_id is provided but not found, create it.
+        Returns the resolved/created conv_id.
+        """
+        try:
+            if conv_id is not None:
+                resp = (
+                    self.supabase.table("Conversation").select("conv_id").eq("conv_id", conv_id).limit(1).execute()
+                )
+                if resp.data:
+                    return conv_id
+                # Not found: create with provided conv_id
+                self.save_data("Conversation", {
+                    "conv_id": conv_id,
+                    "created_at": self.get_current_timestamp(),
+                    "audit_id": None
+                })
+                return conv_id
+            # No conv_id: create new
+            new_id = self.get_next_id("Conversation", "conv_id")
+            self.save_data("Conversation", {
+                "conv_id": new_id,
+                "created_at": self.get_current_timestamp(),
+                "audit_id": None
+            })
+            return new_id
+        except Exception:
+            # Best-effort fallback
+            return conv_id if conv_id is not None else 1
 
     def save_audit(self, audit_id = None, project_id = None, status = None):
         return self.save_data("Audit", {
@@ -41,14 +62,17 @@ class Database():
             "status": status
         })
 
-    def save_message(self, message = None, type = None):
-        return self.save_data("Message", {
+    def save_message(self, message: str | None = None, type: str | None = None, conv_id: int | None = None, created_at: str | None = None):
+        """Persist a message. Prefer passing conv_id explicitly; falls back to self.conv_id if set."""
+        cid = conv_id if conv_id is not None else self.conv_id
+        payload = {
             "msg_id": self.get_next_id("Message", "msg_id"),
-            "created_at": self.get_current_timestamp(),
+            "created_at": created_at or self.get_current_timestamp(),
             "type": type,
             "content": message,
-            "conv_id": self.conv_id
-        })
+            "conv_id": cid,
+        }
+        return self.save_data("Message", payload)
         
     def save_issue(self, audit_id, issue_id = None, issue_description = None, ent_id = None, status = None):
         return self.save_data("Issue", {
@@ -130,7 +154,15 @@ class Database():
         return self.load_data("Project", project_id, **kwargs)
 
     def get_next_id(self, table, id_field, minimum_value = 1):
-        return self.supabase.table(table).select(id_field).order(id_field, desc=True).limit(1).execute() or minimum_value
+        resp = self.supabase.table(table).select(id_field).order(id_field, desc=True).limit(1).execute()
+        try:
+            if resp and getattr(resp, "data", None):
+                latest = resp.data[0].get(id_field)
+                if isinstance(latest, int):
+                    return latest + 1
+        except Exception:
+            pass
+        return minimum_value
 
     def get_current_timestamp(self):
         from datetime import datetime
@@ -142,6 +174,16 @@ class Database():
         response = target.execute()
         doc_ids = [row['doc_id'] for row in response.data]
         return doc_ids
+
+    def load_messages_for_conversation(self, conv_id: int):
+        target = (
+            self.supabase.table("Message")
+            .select("*")
+            .eq("conv_id", conv_id)
+            .order("created_at", desc=False)
+        )
+        response = target.execute()
+        return response.data
     
     def project_audit(self, project_id: int):
         response = self.supabase.table("Audit").insert({"project_id": project_id, "status": "in_progess"}).execute()
@@ -158,7 +200,7 @@ class Database():
             "clarification_qn": qn
         }).execute()
         return response.data[0]["issue_id"]
-    
+
     def create_conversation(self, audit_id: int, issue_id: int):
         response = self.supabase.table("Conversation").insert({
             "audit_id": audit_id,
@@ -170,6 +212,7 @@ class Database():
         response = self.supabase.table("Message").insert({
             "conv_id": conv_id,
             "type": role,
-            "content": content
+            "content": content,
+            "created_at": self.get_current_timestamp(),
         }).execute()
         return response.data[0]["msg_id"]
