@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, FileText, Calendar, Users, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { checkProjects } from "@/lib/api";
+import { AddLawDialog } from "@/components/AddLawDialog";
 
 interface Project {
   id: string;
@@ -107,6 +108,7 @@ const Dashboard = () => {
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 {isLoading ? 'Loading...' : 'Refresh'}
               </Button>
+              <AddLawDialog />
               <Button onClick={() => navigate("/project/new")} className="gap-2">
                 <Plus className="h-4 w-4" />
                 New Project

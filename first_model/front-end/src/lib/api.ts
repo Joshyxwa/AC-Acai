@@ -65,3 +65,14 @@ export const addComment = (data: {
   method: 'POST',
   body: JSON.stringify(data),
 });
+
+export const addLaw = (data: {
+  article_number: string;
+  type: 'recital' | 'law' | 'definition';
+  belongs_to: string;
+  contents: string;
+  word?: string | null;
+}) => apiCall('/add_law', {
+  method: 'POST',
+  body: JSON.stringify(data),
+});

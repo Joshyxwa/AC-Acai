@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
+from ..database.Database import Database
+from ..io.IO import IO
+from fastapi import Depends, Request
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 
@@ -166,6 +169,8 @@ JSON
     }
 }
 
+laws = [] # temporary storage
+
 # ---------- Pydantic Models ----------
 class ProjectSummary(BaseModel):
     id: str
@@ -209,6 +214,13 @@ class HighlightActionRequest(BaseModel):
 class HighlightResponse(Comment):
     pass
 
+class Law(BaseModel):
+    article_number: str
+    type: Literal["recital", "law", "definition"]
+    belongs_to: str
+    contents: str
+    word: Optional[str] = None  # only required if type=definition
+
 # ---------- Helpers ----------
 def _now_hhmm() -> str:
     # "Just now" is requested for the dummy; we’ll still compute id from epoch ms
@@ -233,7 +245,23 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
 
+def audit_project(project_id: int):
+    documents = Database.load_document(project_id=project_id)
+    print(documents)
+    pass    
+
 # ---------- Endpoints ----------
+@app.on_event("startup")
+async def startup_event():
+    # Single IO instance for the app lifetime
+    app.state.io = IO()
+
+def get_io(request: Request) -> IO:
+    io = getattr(request.app.state, "io", None)
+    if not io:
+        raise HTTPException(status_code=500, detail="IO not initialized")
+    return io
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -293,6 +321,53 @@ def add_comment(req: HighlightActionRequest):
     hl.setdefault("comments", []).append(comment)
     return {"ok": True, "message": "Comment added"}
 
+@app.post("/add_law")
+def add_law(law: Law):
+    # Validation: if type=definition, word must be provided
+    if law.type == "definition" and not law.word:
+        return {"ok": False, "message": "Word must be provided for definition type laws."}
+
+    print(f"Adding law: {law.dict()}")
+    # Add to "DB"
+    laws.append(law.dict())
+    return {"ok": True, "message": "Law added successfully", "law": law.dict()}
+
+# ---------- Chatbox / Conversation API ----------
+class ChatboxCreateIn(BaseModel):
+    conv_id: Optional[int] = None
+    preload: bool = True
+
+class MessageIn(BaseModel):
+    conv_id: int
+    content: str
+    run_inference: bool = True
+
+@app.post("/chatbox/create")
+def chatbox_create(payload: ChatboxCreateIn, io: IO = Depends(get_io)):
+    res = io.get_or_create_chatbox(conv_id=payload.conv_id, preload=payload.preload)
+    if not res["ok"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res["data"]
+
+@app.get("/chatbox/{conv_id}/history")
+def chatbox_history(conv_id: int, reload: bool = False, io: IO = Depends(get_io)):
+    res = io.get_history(conv_id, reload=reload)
+    if not res["ok"]:
+        raise HTTPException(status_code=404 if res["error"] == "chatbox not found; call get_or_create_chatbox first" else 500, detail=res["error"])
+    return res["data"]
+
+@app.post("/chatbox/message")
+def chatbox_message(payload: MessageIn, io: IO = Depends(get_io)):
+    # Ensure chatbox exists
+    ensure = io.get_or_create_chatbox(conv_id=payload.conv_id, preload=False)
+    if not ensure["ok"]:
+        raise HTTPException(status_code=500, detail=ensure["error"])
+
+    res = io.handle_incoming(payload.conv_id, payload.content, run_inference=payload.run_inference)
+    if not res["ok"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res["data"]
+
 # Optional root
 @app.get("/")
 def root():
@@ -303,4 +378,7 @@ def root():
         "/get_highlight_response",
         "/add_comment",
         "/health",
+    "/chatbox/create",
+    "/chatbox/{conv_id}/history",
+    "/chatbox/message",
     ]}
