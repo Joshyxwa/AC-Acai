@@ -20,4 +20,4 @@ def audit_project(project_id: int):
         conv_id = database.create_conversation(audit_id=audit_id, issue_id=issue_id)
         start_convo = database.send_first_message(conv_id=conv_id, role="ai", content=audit_response[0]["clarification_question"])
 if __name__ == "__main__":
-    audit_project(1)
+    audit_project(2)
