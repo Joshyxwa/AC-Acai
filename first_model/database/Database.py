@@ -414,7 +414,16 @@ class Database():
         return response.data
     
     def project_audit(self, project_id: int):
-        response = self.supabase.table("Audit").insert({"project_id": project_id, "status": "in_progess"}).execute()
+        response = (
+            self.supabase
+            .table("Audit")
+            .insert({
+                "audit_id": self.get_next_id("Audit", "audit_id"),
+                "project_id": project_id,
+                "status": "in_progress",
+            })
+            .execute()
+        )
         print(response.data)
         return response.data[0]["audit_id"]
     
@@ -431,6 +440,7 @@ class Database():
 
     def create_conversation(self, audit_id: int, issue_id: int):
         response = self.supabase.table("Conversation").insert({
+            "conv_id": self.get_next_id("Conversation", "conv_id"),
             "audit_id": audit_id,
             "issue_id": issue_id
         }).execute()
@@ -438,6 +448,7 @@ class Database():
     
     def send_first_message(self, conv_id: int, role: str, content: str):
         response = self.supabase.table("Message").insert({
+            "msg_id": self.get_next_id("Message", "msg_id"),
             "conv_id": conv_id,
             "type": role,
             "content": content,

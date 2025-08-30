@@ -78,10 +78,10 @@ class Chatbox:
             return None
 
     def record_inference(self, audit: Any = None, attack: Any = None) -> Dict[str, Optional[Dict[str, Any]]]:
-        """Append inference results as messages (auditor/attacker)."""
+        """Append inference results as messages (auditor/attacker). Store as 'ai' type for system."""
         results: Dict[str, Optional[Dict[str, Any]]] = {"audit": None, "attack": None}
         if audit is not None:
-            results["audit"] = self.append_message("auditor", str(audit))
+            results["audit"] = self.append_message("ai", str(audit))
         if attack is not None:
-            results["attack"] = self.append_message("attacker", str(attack))
+            results["attack"] = self.append_message("ai", str(attack))
         return results
