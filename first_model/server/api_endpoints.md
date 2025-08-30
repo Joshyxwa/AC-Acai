@@ -1,5 +1,3 @@
-Here you go — a complete API_Documentation.md file you can save directly in your repo:
-
 # GeoCompliance Mock Server – API Documentation
 
 This document outlines the available API endpoints, expected inputs, and outputs for the FastAPI mock server.
@@ -248,5 +246,5 @@ fetch("http://localhost:8000/add_comment", {
 Notes
 	•	All responses are currently dummy data stored in memory.
 	•	Data resets when the server restarts.
-	•	In production, you would connect to a persistent database.
+	•	In production, connect to a persistent database.
 
