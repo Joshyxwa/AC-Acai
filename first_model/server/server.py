@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
-from database.Database import Database
+from ..database.Database import Database
+from ..io.IO import IO
+from fastapi import Depends, Request
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
@@ -251,7 +253,23 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
 
+def audit_project(project_id: int):
+    documents = Database.load_document(project_id=project_id)
+    print(documents)
+    pass    
+
 # ---------- Endpoints ----------
+@app.on_event("startup")
+async def startup_event():
+    # Single IO instance for the app lifetime
+    app.state.io = IO()
+
+def get_io(request: Request) -> IO:
+    io = getattr(request.app.state, "io", None)
+    if not io:
+        raise HTTPException(status_code=500, detail="IO not initialized")
+    return io
+
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -322,6 +340,42 @@ def add_law(law: Law):
     laws.append(law.dict())
     return {"ok": True, "message": "Law added successfully", "law": law.dict()}
 
+# ---------- Chatbox / Conversation API ----------
+class ChatboxCreateIn(BaseModel):
+    conv_id: Optional[int] = None
+    preload: bool = True
+
+class MessageIn(BaseModel):
+    conv_id: int
+    content: str
+    run_inference: bool = True
+
+@app.post("/chatbox/create")
+def chatbox_create(payload: ChatboxCreateIn, io: IO = Depends(get_io)):
+    res = io.get_or_create_chatbox(conv_id=payload.conv_id, preload=payload.preload)
+    if not res["ok"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res["data"]
+
+@app.get("/chatbox/{conv_id}/history")
+def chatbox_history(conv_id: int, reload: bool = False, io: IO = Depends(get_io)):
+    res = io.get_history(conv_id, reload=reload)
+    if not res["ok"]:
+        raise HTTPException(status_code=404 if res["error"] == "chatbox not found; call get_or_create_chatbox first" else 500, detail=res["error"])
+    return res["data"]
+
+@app.post("/chatbox/message")
+def chatbox_message(payload: MessageIn, io: IO = Depends(get_io)):
+    # Ensure chatbox exists
+    ensure = io.get_or_create_chatbox(conv_id=payload.conv_id, preload=False)
+    if not ensure["ok"]:
+        raise HTTPException(status_code=500, detail=ensure["error"])
+
+    res = io.handle_incoming(payload.conv_id, payload.content, run_inference=payload.run_inference)
+    if not res["ok"]:
+        raise HTTPException(status_code=500, detail=res["error"])
+    return res["data"]
+
 # Optional root
 @app.get("/")
 def root():
@@ -332,4 +386,7 @@ def root():
         "/get_highlight_response",
         "/add_comment",
         "/health",
+    "/chatbox/create",
+    "/chatbox/{conv_id}/history",
+    "/chatbox/message",
     ]}

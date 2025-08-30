@@ -5,10 +5,8 @@ from typing import List, Optional
 from anthropic import Anthropic
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from transformers import AutoTokenizer, AutoModel
-from Model import Model
 import vecs
-load_dotenv("../../secrets/.env.dev")
+load_dotenv("./secrets/.env.dev")
 
 class Auditor():
     def __init__(self):
@@ -29,10 +27,10 @@ class Auditor():
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
 
-    def audit(self, ent_ids: List[int], doc_ids: List[int], threat_scenario: Optional[str] = None) -> str:
+    def audit(self, ent_ids: List[int], doc_ids: List[int], threat_scenario) -> str:
         """Main method to audit a threat scenario against specified legal articles."""
         article_contents = [self.__fetch_article_entry_content(ent_id) for ent_id in ent_ids]
-        prompt = self.format_prompt( article_contents, doc_ids)
+        prompt = self.format_prompt( article_contents, doc_ids, threat_scenario)
         print("\n--- Auditing with LLM ---")
         response = self.__llm_audit(prompt)
         return response
@@ -46,14 +44,11 @@ class Auditor():
             raise ValueError(f"Article with ID {ent_id} not found.")
         
     
-    def format_prompt(self, article_contents: List[str], doc_ids: List[int]) -> str:
+    def format_prompt(self, article_contents: List[str], doc_ids: List[int], threat_scenario) -> str:
         """Formats the prompt for the LLM using the threat scenario and article contents."""
-        with open("./prompt_template/auditor_prompt.txt", "r") as file:
+        with open("first_model/model/prompt_template/auditor_prompt.txt", "r") as file:
             prompt_template = file.read()
             file.close()
-
-        with open("./prompt_template/threat1.txt", "r") as file:
-            threat_scenario = file.read()
 
         prd_dict, tdd_dict = self.__fetch_document_content(doc_ids)
         prd_content, tdd_content = prd_dict["content_span"], tdd_dict["content_span"]
