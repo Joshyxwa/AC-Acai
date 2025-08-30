@@ -19,7 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- Dummy Data Stores ----------
+# ---------- Dummy Data Stores (commented out) ----------
+'''
 projects = [
     {
         "id": "1",
@@ -171,6 +172,7 @@ JSON
 }
 
 laws = [] # temporary storage
+'''
 
 # ---------- Pydantic Models ----------
 class ProjectRow(BaseModel):
@@ -243,34 +245,39 @@ def _epoch_ms_str() -> str:
     return str(int(datetime.now(tz=timezone.utc).timestamp() * 1000))
 
 def _get_project_or_404(project_id: str) -> Dict:
+    io = getattr(app.state, "io", None)
+    if not io:
+        raise HTTPException(status_code=500, detail="IO not initialized")
     try:
         project_id_int = int(project_id)
-        result = dc.get_project_with_documents(project_id=project_id_int)
-        if result is None:
+        res = io.get_project_with_documents(project_id_int)
+        if not res.get("ok"):
+            raise HTTPException(status_code=404, detail=res.get("error") or "Project not found")
+        if not res.get("data"):
             raise HTTPException(status_code=404, detail="Project not found")
-        return result
+        return res["data"]
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project_id format")
-    except Exception:
-        raise HTTPException(status_code=404, detail="Project not found")
 
-def _get_document_or_404(project_id, document_id: str) -> Dict:
-    result = dc.load_document_with_highlighting(int(project_id), int(document_id))
-
+def _get_document_or_404(project_id: str, document_id: str) -> Dict:
+    io = getattr(app.state, "io", None)
+    if not io:
+        raise HTTPException(status_code=500, detail="IO not initialized")
     try:
-        result = dc.load_document_with_highlighting(int(project_id), int(document_id))
-        # print(result)
-        if result is None:
+        pid = int(project_id)
+        did = int(document_id)
+        res = io.load_document_with_highlighting(pid, did)
+        if not res.get("ok"):
+            raise HTTPException(status_code=404, detail=res.get("error") or "Document not found")
+        if not res.get("data"):
             raise HTTPException(status_code=404, detail="Document not found")
-        return result
+        return res["data"]
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid project_id or document_id format")
-    except Exception:
-        raise HTTPException(status_code=404, detail="Document not found")
 
 def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
     for h in doc.get("highlights", []):
-        if h.get("id") == highlight_id:
+        if str(h.get("id")) == str(highlight_id):
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
 
@@ -296,8 +303,11 @@ def health():
     return {"ok": True}
 
 @app.get("/check_projects", response_model=List[ProjectRow])
-def check_projects():
-    return dc.load_all_projects()
+def check_projects(io: IO = Depends(get_io)):
+    res = io.list_projects()
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error") or "Failed to load projects")
+    return res.get("data") or []
 
 @app.get("/get_project", response_model=ProjectDetails)
 def get_project(project_id: str):
@@ -306,18 +316,16 @@ def get_project(project_id: str):
 
 @app.get("/get_document", response_model=DocumentPayload)
 def get_document(project_id: str, document_id: str):
-    # for demo we don't cross-validate that document belongs to project,
-    # but you can enforce that if you store per-project docs
     doc = _get_document_or_404(project_id, document_id)
     return doc
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)
 def get_highlight_response(req: HighlightActionRequest):
     _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.document_id)
+    doc = _get_document_or_404(req.project_id, req.document_id)
     hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    # Append a system response (dummy) and also echo it back
+    # TODO: Append a system response (dummy) and also echo it back
     generated_id = f"response-{_epoch_ms_str()}"
     response = {
         "id": generated_id,
@@ -336,7 +344,7 @@ def get_highlight_response(req: HighlightActionRequest):
 @app.post("/add_comment")
 def add_comment(req: HighlightActionRequest):
     _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.document_id)
+    doc = _get_document_or_404(req.project_id, req.document_id)
     hl = _find_highlight_or_404(doc, req.highlight_id)
 
     comment = {
@@ -350,14 +358,15 @@ def add_comment(req: HighlightActionRequest):
     return {"ok": True, "message": "Comment added"}
 
 @app.post("/add_law")
-def add_law(law: Law):
-    # Validation: if type=definition, word must be provided
+def add_law(law: Law, io: IO = Depends(get_io)):
     if law.type == "definition" and not law.word:
         return {"ok": False, "message": "Word must be provided for definition type laws."}
-
-    print(f"Adding law: {law.dict()}")
-    # Add to "DB"
-    laws.append(law.dict())
+    if law.type == "definition":
+        res = io.save_law_definition(art_num=law.article_number, belongs_to=law.belongs_to, content=law.contents, word=law.word)  # type: ignore[arg-type]
+    else:
+        res = io.save_law_document(art_num=law.article_number, belongs_to=law.belongs_to, type=law.type, contents=law.contents, word=law.word)
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error") or "Failed to save law")
     return {"ok": True, "message": "Law added successfully", "law": law.dict()}
 
 # ---------- Chatbox / Conversation API ----------
@@ -406,7 +415,7 @@ def root():
         "/get_highlight_response",
         "/add_comment",
         "/health",
-    "/chatbox/create",
-    "/chatbox/{conv_id}/history",
-    "/chatbox/message",
+        "/chatbox/create",
+        "/chatbox/{conv_id}/history",
+        "/chatbox/message",
     ]}

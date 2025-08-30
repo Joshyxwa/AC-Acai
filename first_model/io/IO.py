@@ -33,12 +33,23 @@ class IO:
 
         # Core services
         self.database = Database()
-        self.auditor = Auditor(self.database)
-        self.attacker = Attacker(self.database)
 
-        self.logger.info("IO initialized with Database, Auditor, Attacker")
-    # Active chatboxes by conv_id
-    self._chatboxes: Dict[int, Chatbox] = {}
+        # Agents are optional; initialize safely so missing env doesn't break the server
+        self.auditor = None
+        self.attacker = None
+        try:
+            self.auditor = Auditor()
+        except Exception as e:
+            self.logger.warning(f"Auditor init skipped: {e}")
+        try:
+            self.attacker = Attacker()
+        except Exception as e:
+            self.logger.warning(f"Attacker init skipped: {e}")
+
+        # Active chatboxes by conv_id
+        self._chatboxes: Dict[int, Chatbox] = {}
+
+        self.logger.info("IO initialized")
 
     def display(self, audit_response, attack_response):
         print("Audit Response:", audit_response)
@@ -63,7 +74,12 @@ class IO:
         try:
             # Lightweight DB check (does not query network if DB object creation failed)
             has_db = self.database is not None
-            return self._ok({"db": has_db, "agents": ["auditor", "attacker"]})
+            agents = []
+            if self.auditor is not None:
+                agents.append("auditor")
+            if self.attacker is not None:
+                agents.append("attacker")
+            return self._ok({"db": has_db, "agents": agents})
         except Exception as e:
             self.logger.exception("Status check failed")
             return self._err(str(e))
@@ -206,6 +222,29 @@ class IO:
     # ------------------------
     # Projects / Documents (thin wrappers over Database)
     # ------------------------
+    def list_projects(self) -> Dict[str, Any]:
+        try:
+            data = self.database.load_all_projects()
+            return self._ok(data)
+        except Exception as e:
+            self.logger.exception("list_projects failed")
+            return self._err(str(e))
+
+    def get_project_with_documents(self, project_id: int) -> Dict[str, Any]:
+        try:
+            data = self.database.get_project_with_documents(project_id)
+            return self._ok(data)
+        except Exception as e:
+            self.logger.exception("get_project_with_documents failed")
+            return self._err(str(e))
+
+    def load_document_with_highlighting(self, project_id: int, document_id: int) -> Dict[str, Any]:
+        try:
+            data = self.database.load_document_with_highlighting(project_id, document_id)
+            return self._ok(data)
+        except Exception as e:
+            self.logger.exception("load_document_with_highlighting failed")
+            return self._err(str(e))
     def create_project(self, name: Optional[str] = None, description: Optional[str] = None, status: Optional[str] = None) -> Dict[str, Any]:
         try:
             data = self.database.save_project(name=name, description=description, status=status)
