@@ -1,8 +1,8 @@
 import os
 import json
 import torch
-from typing import List
-from google import genai
+from typing import List, Optional
+from anthropic import Anthropic
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
@@ -13,16 +13,10 @@ load_dotenv("../../secrets/.env.dev")
 class Auditor():
     def __init__(self):
         # --- LLM and Embedding Model Setup ---
-        gemini_api_key = os.environ.get("GEMINI_API_KEY")
-        self.llm_client = genai.Client(
-            api_key=gemini_api_key,
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        self.llm_client = Anthropic(
+            api_key=anthropic_key,
         )
-
-        model_name = "nlpaueb/legal-bert-base-uncased"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.embedding_model = AutoModel.from_pretrained(model_name).to(self.device)
 
         # --- Database Client Setup (Simplified) ---
         url: str = os.environ.get("SUPABASE_URL")
@@ -35,17 +29,93 @@ class Auditor():
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
 
-    def audit(self, threat_scenario, issues_broken):
+    def audit(self, ent_ids: List[int], doc_ids: List[int], threat_scenario: Optional[str] = None) -> str:
+        """Main method to audit a threat scenario against specified legal articles."""
+        article_contents = [self.__fetch_article_entry_content(ent_id) for ent_id in ent_ids]
+        prompt = self.format_prompt( article_contents, doc_ids)
+        print("\n--- Auditing with LLM ---")
+        response = self.__llm_audit(prompt)
+        return response
+    
+    def __fetch_article_entry_content(self, ent_id: int) -> str:
+        """Fetches the content of a single document to be audited."""
+        response = self.supabase.table("Article_Entry").select("contents").eq("ent_id", ent_id).single().execute()
+        if response.data:
+            return {"ent_id": ent_id, "content":response.data["contents"]}
+        else:
+            raise ValueError(f"Article with ID {ent_id} not found.")
+        
+    
+    def format_prompt(self, article_contents: List[str], doc_ids: List[int]) -> str:
+        """Formats the prompt for the LLM using the threat scenario and article contents."""
         with open("./prompt_template/auditor_prompt.txt", "r") as file:
             prompt_template = file.read()
             file.close()
-            
-        with open("threat1.txt", "r") as file:
+
+        with open("./prompt_template/threat1.txt", "r") as file:
             threat_scenario = file.read()
 
-        with open("issues1.txt", "r") as file:
-            issues_broken = file.read()
-
-    def retrieve_relevant_laws(self, law_names):
-        relevant_laws = self.database.table("Law").select("*").in_("name", law_names).execute().data
-        return relevant_laws
+        prd_dict, tdd_dict = self.__fetch_document_content(doc_ids)
+        prd_content, tdd_content = prd_dict["content_span"], tdd_dict["content_span"]
+        
+        article_contents_str = ""
+        for article in article_contents:
+            article_contents_str+= f"Article ID: {article['ent_id']}\nContent: {article['content']}\n\n"
+        final_prompt = prompt_template.format(
+            PRD_CONTENT=prd_content,
+            TDD_CONTENT=tdd_content,
+            THREAT_SCENARIO=threat_scenario,
+            POTENTIAL_LAW_BROKEN=article_contents_str
+        )
+        return final_prompt
+    
+    def __fetch_document_content(self, doc_ids: List[int]) -> str:
+        """Fetches the content of a single document to be audited."""
+        for doc_id in doc_ids:
+            response = self.supabase.table("Document").select("content_span", "type").eq("doc_id", doc_id).single().execute()
+            doc_type = response.data["type"]
+            if doc_type == "prd":
+                prd_dict = {"doc_id": doc_id, "doc_type": doc_type, "content_span": response.data["content_span"]}
+            if doc_type == "prd":
+                tdd_dict = {"doc_id": doc_id, "doc_type": doc_type, "content_span": response.data["content_span"]}
+        return prd_dict, tdd_dict
+    
+    def __llm_audit(self, prompt: str) -> str:
+        response = self.llm_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4000,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        print("--- Audit Complete ---")
+        response_object = json.loads(response.content[0].text)
+        return response_object
+    
+if __name__ == "__main__":
+    print("--- Initializing Auditor Test Case ---")
+    auditor = Auditor()
+    
+    # --- DEFINE YOUR TEST INPUTS HERE ---
+    # These should be REAL IDs from your Supabase tables.
+    # The list should contain one PRD and one TDD document ID.
+    document_ids_to_test = [1, 2] 
+    
+    # A list of legal article IDs to check against.
+    article_ids_to_test = [101, 102] 
+    
+    try:
+        print(f"\n--- Starting test run ---")
+        # Call the main audit method
+        analysis_result = auditor.audit(
+            doc_ids=document_ids_to_test,
+            ent_ids=article_ids_to_test
+        )
+        
+        print("\n\n--- ✅ FINAL ANALYSIS RESULT ---")
+        print(analysis_result)
+        
+    except Exception as e:
+        print(f"\n\n--- ❌ AN ERROR OCCURRED ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Details: {e}")
