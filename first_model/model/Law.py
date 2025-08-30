@@ -68,7 +68,7 @@ class Law():
             
             # Catch the specific error for "service unavailable" or "resource exhausted".
             # This is better than a generic 'except Exception'.
-            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+            except Exception as e:
                 print(f"⚠️ Error: {e}")
                 # If this is the last attempt, print a final failure message.
                 if attempt == 5 - 1:
@@ -158,7 +158,7 @@ class Law():
             
             # Catch the specific error for "service unavailable" or "resource exhausted".
             # This is better than a generic 'except Exception'.
-            except (exceptions.ServiceUnavailable, exceptions.ResourceExhausted) as e:
+            except Exception as e:
                 print(f"⚠️ Error: {e}")
                 # If this is the last attempt, print a final failure message.
                 if attempt == 5 - 1:

@@ -69,9 +69,9 @@ class Auditor():
         for doc_id in doc_ids:
             response = self.supabase.table("Document").select("content_span", "type").eq("doc_id", doc_id).single().execute()
             doc_type = response.data["type"]
-            if doc_type == "prd":
+            if doc_type == "PRD":
                 prd_dict = {"doc_id": doc_id, "doc_type": doc_type, "content_span": response.data["content_span"]}
-            if doc_type == "prd":
+            if doc_type == "TDD":
                 tdd_dict = {"doc_id": doc_id, "doc_type": doc_type, "content_span": response.data["content_span"]}
         return prd_dict, tdd_dict
     
