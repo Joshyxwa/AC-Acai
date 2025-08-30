@@ -334,8 +334,8 @@ def get_highlight_response(req: HighlightActionRequest):
     # }
     # hl.setdefault("comments", []).append(response)
     response = ch.adjudicate(int(req.highlight_id))
-    print(dc.get_whole_message(response))
-    return dc.get_whole_message(response) 
+    print(dc.get_last_message_by_content(response))
+    return dc.get_last_message_by_content(response) 
 
 @app.post("/add_comment")
 def add_comment(req: HighlightActionRequest):

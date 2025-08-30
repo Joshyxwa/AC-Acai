@@ -381,8 +381,16 @@ class Database():
         )
         return ins.data[0] if ins.data else None
     
-    def get_whole_message(self, content):
-        return self.supabase.table("Message").select("*").eq("content", content).single().execute().data
+    def get_last_message_by_content(self, content):
+        response = self.supabase.table("Message").select("*").eq("content", content).execute().data[-1]
+
+        return {
+            "id": response['msg_id'],
+            "author": "GeoCompliance AI" if response["type"] == "ai" else "User",
+            "timestamp": response['created_at'],
+            "content": response['content'],
+            "type": "system" if response['type'] == "ai" else "user"
+        }
 
     def get_current_timestamp(self):
         from datetime import datetime
