@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
-from database.Database import Database
-from io.IO import IO
+from ..database.Database import Database
+from ..io.IO import IO
 from fastapi import UploadFile, File, Depends, Request
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
@@ -236,6 +236,11 @@ class Law(BaseModel):
     contents: str
     word: Optional[str] = None  # only required if type=definition
 
+class AuditRunIn(BaseModel):
+    project_id: int
+    max_scenarios: int = 3
+    create_audit: Optional[bool] = False
+
 # ---------- Helpers ----------
 def _now_hhmm() -> str:
     # "Just now" is requested for the dummy; we’ll still compute id from epoch ms
@@ -302,6 +307,10 @@ def get_io(request: Request) -> IO:
 def health():
     return {"ok": True}
 
+@app.get("/status")
+def status(io: IO = Depends(get_io)):
+    return io.status()
+
 @app.get("/check_projects", response_model=List[ProjectRow])
 def check_projects(io: IO = Depends(get_io)):
     res = io.list_projects()
@@ -357,8 +366,9 @@ def add_comment(req: HighlightActionRequest):
     hl.setdefault("comments", []).append(comment)
     return {"ok": True, "message": "Comment added"}
 
-@app.post("/add_law_document")
-def add_law_document(law: Law, io: IO = Depends(get_io)):
+@app.post("/add_law")
+def add_law(law: Law, io: IO = Depends(get_io)):
+    """Accepts JSON payload for adding a law/recital/definition (used by frontend)."""
     if law.type == "definition" and not law.word:
         return {"ok": False, "message": "Word must be provided for definition type laws."}
     if law.type == "definition":
@@ -369,8 +379,9 @@ def add_law_document(law: Law, io: IO = Depends(get_io)):
         raise HTTPException(status_code=500, detail=res.get("error") or "Failed to save law")
     return {"ok": True, "message": "Law added successfully", "law": law.dict()}
 
-@app.post("/add_law")
-async def add_law(file: UploadFile = File(...)):
+@app.post("/add_law_file")
+async def add_law_file(file: UploadFile = File(...)):
+    """Optional file-upload endpoint for adding laws from a .txt file."""
     if file.content_type != "text/plain":
         return {"ok": False, "message": "Only .txt files are accepted."}
     try:
@@ -426,8 +437,37 @@ def root():
         "/get_document?project_id=1&document_id=tdd-1",
         "/get_highlight_response",
         "/add_comment",
+    "/add_law",
+    "/add_law_file",
         "/health",
+        "/status",
         "/chatbox/create",
         "/chatbox/{conv_id}/history",
         "/chatbox/message",
+        "/audit/run",
     ]}
+
+@app.post("/audit/run")
+def audit_run(payload: AuditRunIn, io: IO = Depends(get_io)):
+    # If requested, create an Audit row first and run with status updates
+    if payload.create_audit:
+        created = io.create_audit(project_id=payload.project_id, status="pending")
+        if not created.get("ok"):
+            raise HTTPException(status_code=500, detail=created.get("error") or "Failed to create audit")
+        audit_obj = created.get("data") or {}
+        audit_id = audit_obj.get("audit_id") if isinstance(audit_obj, dict) else None
+        if audit_id is None:
+            # Try to look up the most recent audit for project as a fallback
+            try:
+                rows = io.database.supabase.table("Audit").select("audit_id").eq("project_id", payload.project_id).order("created_at", desc=True).limit(1).execute().data
+                audit_id = (rows[0]["audit_id"] if rows else None)
+            except Exception:
+                pass
+        if audit_id is None:
+            raise HTTPException(status_code=500, detail="Failed to determine audit_id")
+        res = io.run_audit_pipeline_for_audit_and_update(audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
+    else:
+        res = io.run_audit_pipeline(project_id=payload.project_id, max_scenarios=payload.max_scenarios)
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error") or "Audit pipeline failed")
+    return res.get("data")

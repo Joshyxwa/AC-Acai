@@ -43,15 +43,7 @@ class Chatbox:
             self.messages = []
             return
         try:
-            resp = (
-                self._db.supabase
-                .table("Message")
-                .select("*")
-                .eq("conv_id", self.conv_id)
-                .order("created_at", desc=False)
-                .execute()
-            )
-            self.messages = list(resp.data or [])
+            self.messages = list(self._db.load_messages_for_conversation(self.conv_id) or [])
         except Exception as e:
             self.logger.exception("Failed to reload messages: %s", e)
             self.messages = []
@@ -76,8 +68,8 @@ class Chatbox:
         if extra:
             payload.update(extra)
         try:
-            resp = self._db.supabase.table("Message").insert(payload).execute()
-            row = (resp.data or [None])[0]
+            resp = self._db.save_message(message=payload.get("content"), type=payload.get("type"), conv_id=self.conv_id)
+            row = (getattr(resp, "data", None) or [None])[0]
             if row:
                 self.messages.append(row)
             return row
