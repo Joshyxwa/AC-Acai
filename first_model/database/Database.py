@@ -2,14 +2,14 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 
-class Database:
+class Database():
     def __init__(self, conv_id = None):
         load_dotenv("./secrets/.env.dev")
         self.__URL = os.environ.get("SUPABASE_URL")
         self.__KEY = os.environ.get("SUPABASE_KEY")
         self.supabase = create_client(self.__URL, self.__KEY)
     
-        self.conv_id = self.get_conversation(conv_id)
+        # self.conv_id = self.get_conversation(conv_id)/
     
     def save_data(self, table, data):
         response = self.supabase.table(table).insert(data).execute()
@@ -135,3 +135,41 @@ class Database:
     def get_current_timestamp(self):
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def load_document_ids(self, project_id: int):
+        print(project_id)
+        target = self.supabase.table("Document").select("doc_id").eq("project_id", project_id)
+        response = target.execute()
+        doc_ids = [row['doc_id'] for row in response.data]
+        return doc_ids
+    
+    def project_audit(self, project_id: int):
+        response = self.supabase.table("Audit").insert({"project_id": project_id, "status": "in_progess"}).execute()
+        print(response.data)
+        return response.data[0]["audit_id"]
+    
+    def create_issue(self, audit_id: int, issue_description: str, ent_id: int, status: str = "open", evidence: dict = None, qn: str = None):
+        response = self.supabase.table("Issue").insert({
+            "audit_id": audit_id,
+            "issue_description": issue_description,
+            "ent_id": ent_id,
+            "status": status,
+            "evidence": evidence,
+            "clarification_qn": qn
+        }).execute()
+        return response.data[0]["issue_id"]
+    
+    def create_conversation(self, audit_id: int, issue_id: int):
+        response = self.supabase.table("Conversation").insert({
+            "audit_id": audit_id,
+            "issue_id": issue_id
+        }).execute()
+        return response.data[0]["conv_id"]
+    
+    def send_first_message(self, conv_id: int, role: str, content: str):
+        response = self.supabase.table("Message").insert({
+            "conv_id": conv_id,
+            "type": role,
+            "content": content
+        }).execute()
+        return response.data[0]["msg_id"]

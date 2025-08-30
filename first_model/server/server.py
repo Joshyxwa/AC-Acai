@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
+from ..database.Database import Database
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 
@@ -241,6 +242,11 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
         if h.get("id") == highlight_id:
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
+
+def audit_project(project_id: int):
+    documents = Database.load_document(project_id=project_id)
+    print(documents)
+    pass    
 
 # ---------- Endpoints ----------
 @app.get("/health")
