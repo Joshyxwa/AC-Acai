@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
-from database.Database import Database
-from io.IO import IO
+from first_model.database.Database import Database
+from first_model.io.IO import IO
 from fastapi import UploadFile, File, Depends, Request
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
@@ -280,10 +280,10 @@ def audit_project(project_id: int):
     pass    
 
 # ---------- Endpoints ----------
-@app.on_event("startup")
-async def startup_event():
-    # Single IO instance for the app lifetime
-    app.state.io = IO()
+# @app.on_event("startup")
+# async def startup_event():
+#     # Single IO instance for the app lifetime
+#     app.state.io = IO()
 
 def get_io(request: Request) -> IO:
     io = getattr(request.app.state, "io", None)

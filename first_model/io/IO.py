@@ -37,8 +37,8 @@ class IO:
         self.attacker = Attacker(self.database)
 
         self.logger.info("IO initialized with Database, Auditor, Attacker")
-    # Active chatboxes by conv_id
-    self._chatboxes: Dict[int, Chatbox] = {}
+        # Active chatboxes by conv_id
+        self._chatboxes: Dict[int, Chatbox] = {}
 
     def display(self, audit_response, attack_response):
         print("Audit Response:", audit_response)
