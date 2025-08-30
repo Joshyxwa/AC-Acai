@@ -455,3 +455,15 @@ class Database():
             "created_at": self.get_current_timestamp(),
         }).execute()
         return response.data[0]["msg_id"]
+    
+    def get_latest_audit(self, project_id):
+        response = (
+            self.supabase
+            .table("Audit")
+            .select("*")
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None

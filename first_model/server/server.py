@@ -9,10 +9,12 @@ from first_model.model.Chat import Chat
 from fastapi import UploadFile, File, Depends, Request
 from first_model.server.main import audit_project
 from fastapi import BackgroundTasks
+from first_model.model.Report import Report
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
 ch = Chat()
+rp = Report()
 
 # --- CORS (adjust origins as needed) ---
 app.add_middleware(
@@ -234,6 +236,9 @@ class HighlightResponse(Comment):
 class AuditRequest(BaseModel):
     project_id: str
 
+class ReportRequest(BaseModel):
+    project_id: str 
+
 class Law(BaseModel):
     article_number: str
     type: Literal["recital", "law", "definition"]
@@ -323,6 +328,16 @@ def new_audit(req: AuditRequest):
     # Validate and process the audit request
     audit_project(int(req.project_id), dc)
     return {"ok": True, "message": "Audit created"}
+
+@app.post("/generate_report")
+def new_report(req: ReportRequest):
+    # Validate and process the report request
+    resp = dc.get_latest_audit(project_id=int(req.project_id))
+    if resp: 
+        response = rp.generate(resp['audit_id'])
+        return {"ok": True, "report": response}
+    else:
+        return {"ok": False, "report": "No audit found"}
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)
 def get_highlight_response(req: HighlightActionRequest):

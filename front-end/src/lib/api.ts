@@ -90,3 +90,15 @@ export const addLaw = async (file: File) => {
     return { ok: false, message: 'Upload failed. Please try again.' };
   }
 };
+
+export const newAudit = (projectId: string) => 
+  apiCall('/new_audit', {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId }),
+  });
+
+export const generateReport = (projectId: string) => 
+  apiCall('/generate_report', {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId }),
+  });
