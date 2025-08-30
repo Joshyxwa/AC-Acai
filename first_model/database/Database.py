@@ -381,8 +381,16 @@ class Database():
         )
         return ins.data[0] if ins.data else None
     
-    def get_whole_message(self, content):
-        return self.supabase.table("Message").select("*").eq("content", content).single().execute().data
+    def get_last_message_by_content(self, content):
+        response = self.supabase.table("Message").select("*").eq("content", content).execute().data[-1]
+
+        return {
+            "id": response['msg_id'],
+            "author": "GeoCompliance AI" if response["type"] == "ai" else "User",
+            "timestamp": response['created_at'],
+            "content": response['content'],
+            "type": "system" if response['type'] == "ai" else "user"
+        }
 
     def get_current_timestamp(self):
         from datetime import datetime
@@ -406,7 +414,16 @@ class Database():
         return response.data
     
     def project_audit(self, project_id: int):
-        response = self.supabase.table("Audit").insert({"project_id": project_id, "status": "in_progess"}).execute()
+        response = (
+            self.supabase
+            .table("Audit")
+            .insert({
+                "audit_id": self.get_next_id("Audit", "audit_id"),
+                "project_id": project_id,
+                "status": "in_progress",
+            })
+            .execute()
+        )
         print(response.data)
         return response.data[0]["audit_id"]
     
@@ -423,6 +440,7 @@ class Database():
 
     def create_conversation(self, audit_id: int, issue_id: int):
         response = self.supabase.table("Conversation").insert({
+            "conv_id": self.get_next_id("Conversation", "conv_id"),
             "audit_id": audit_id,
             "issue_id": issue_id
         }).execute()
@@ -430,12 +448,25 @@ class Database():
     
     def send_first_message(self, conv_id: int, role: str, content: str):
         response = self.supabase.table("Message").insert({
+            "msg_id": self.get_next_id("Message", "msg_id"),
             "conv_id": conv_id,
             "type": role,
             "content": content,
             "created_at": self.get_current_timestamp(),
         }).execute()
         return response.data[0]["msg_id"]
+    
+    def get_latest_audit(self, project_id):
+        response = (
+            self.supabase
+            .table("Audit")
+            .select("*")
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
 
     def get_project_ids():
         response = self.supabase.table("Project").select("project_id").execute()
