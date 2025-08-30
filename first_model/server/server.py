@@ -391,13 +391,11 @@ async def add_law(file: UploadFile = File(...)):
     contents = await file.read()
     text = contents.decode("utf-8")
     parser.parse(content=text)
-    bill = Parser.get_bill()
+    bill = parser.get_bill()
     ids = dc.get_project_ids()
     for id in ids:
         audit_project(id, dc,  bill)
     return {"ok": True, "message": "File uploaded and printed successfully."}
-    # except Exception as e:
-    #     return {"ok": False, "message": f"Failed to process file: {str(e)}"}
 
 # ---------- Chatbox / Conversation API ----------
 class ChatboxCreateIn(BaseModel):

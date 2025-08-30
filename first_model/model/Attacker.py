@@ -4,7 +4,7 @@ import re
 import anthropic
 from supabase import create_client, Client
 from pydantic import BaseModel, Field, field_validator, ValidationError
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -166,7 +166,7 @@ class Attacker():
         *, #Everything after the * (max_n, prd_doc_id) must be passed as keyword arguments.
         max_n: int = 3,
         prd_doc_id: int,
-        tdd_doc_id: int,
+        tdd_doc_id: Optional[int] = None,
     ) -> AuditBundle:
         """
         Run an attack analysis: fetch PRD doc, call Claude, parse+validate JSON.

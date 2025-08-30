@@ -94,19 +94,26 @@ class Law():
                     time.sleep(wait_time)
         return response.text if response else ""
 
-    def __vector_search(self, embedding: List[float], top_k: int = 3) -> List[dict]:
+    def __vector_search(self, bill: str, embedding: List[float], top_k: int = 3) -> List[dict]:
         """Performs vector search using a Supabase RPC function."""
-        if self.bill == "All":
-            index_list = self.docs.query(
-                data=embedding,              # required
-                limit=3,                         # number of records to return
-                filters={"type": {"$eq": "Law"}},
-            ) 
-        else:
+        if bill == "All":
+            # This part was already correct, as it only has one filter condition
             index_list = self.docs.query(
                 data=embedding,
-                limit=3,
-                filters={"belongs_to": {"$eq": self.bill}, "type": {"$eq": "Law"}},
+                limit=top_k,
+                filters={"type": {"$eq": "Law"}},
+            )
+        else:
+            # Correctly combine multiple filters using the $and operator ✅
+            index_list = self.docs.query(
+                data=embedding,
+                limit=top_k,
+                filters={
+                    "$and": [
+                        {"belongs_to": {"$eq": bill}},
+                        {"type": {"$eq": "Law"}}
+                    ]
+                }
             )
         return index_list
     
@@ -118,12 +125,12 @@ class Law():
         else:
             raise ValueError(f"Document with ID {doc_id} not found.")
 
-    def audit(self, doc_ids: List[int], top_k: int = 3):
+    def audit(self, bill:str, doc_ids: List[int], top_k: int = 3):
         """
         Audits multiple documents together by first synthesizing their content
         and then running the HyDE pipeline on the unified context.
         """
- 
+
         # 1. Fetch the content of all documents
         document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
         
@@ -143,7 +150,7 @@ class Law():
         query_embedding = self._embed_text(hypothetical_doc)[0]
 
         # 6. Search for relevant articles
-        relevant_articles = self.__vector_search(embedding=query_embedding, top_k=top_k)
+        relevant_articles = self.__vector_search(embedding=query_embedding, top_k=top_k, bill=bill)
         return relevant_articles
     
     def __synthesize_documents(self, contents: List[str]) -> str:

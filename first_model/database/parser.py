@@ -117,53 +117,68 @@ class Parser():
         return minimum_value
 
     def save_to_db(self):
-        records = []
+        # Get the starting ID once before the loop
+        next_ent_id = self.get_next_id()
+
+        supabase_records_to_insert = []
+        vector_records_to_upsert = []
+
+        # Process definitions
         for definition in self.definitions:
-            self.supabase.table("Article_Entry").insert({
-                "ent_id": self.get_next_id(),
+            content = definition["def_content"]
+            embedding = self.get_embedding(content)
+
+            record_data = {
+                "ent_id": next_ent_id,
                 "art_num": definition["art_num"],
                 "type": "Definition",
                 "belongs_to": self.title,
-                "contents": definition["def_content"],
+                "contents": content,
                 "word": definition["word"],
-                "embedding": None
-            }).execute()
+                # If your Supabase table has an embedding column, store it here too
+                "embedding": embedding  
+            }
+            supabase_records_to_insert.append(record_data)
 
-            embedding = self.get_embedding(definition["def_content"])
-            record = (
-                self.get_next_id(),
-                embedding, {
-                "art_num": definition["art_num"],
-                "type": "Definition",
-                "belongs_to": self.title,
-                "contents": definition["def_content"],
-                "word": definition["word"],})
-            records.append(record)
+            # Prepare vector record (ID, vector, metadata)
+            vector_metadata = {key: value for key, value in record_data.items() if key != 'ent_id'}
+            vector_records_to_upsert.append((next_ent_id, embedding, vector_metadata))
 
+            # Increment the ID for the next item
+            next_ent_id += 1
+
+        # Process articles
         for article in self.articles:
-            self.supabase.table("Article_Entry").insert({
-                "ent_id": self.get_next_id(),
+            content = article["contents"]
+            embedding = self.get_embedding(content)
+
+            record_data = {
+                "ent_id": next_ent_id,
                 "art_num": article["art_num"],
                 "type": "Law",
                 "belongs_to": self.title,
-                "contents": article["contents"],
+                "contents": content,
                 "word": None,
-                "embedding": None
-            }).execute()
+            }
+            supabase_records_to_insert.append(record_data)
+            
+            vector_metadata = {key: value for key, value in record_data.items() if key != 'ent_id'}
+            vector_records_to_upsert.append((next_ent_id, embedding, vector_metadata))
 
-            embedding = self.get_embedding(article["contents"])
-            record = (
-                self.get_next_id(),
-                embedding, {
-                "art_num": article["art_num"],
-                "type": "Law",
-                "belongs_to": self.title,
-                "contents": article["contents"],
-                "word": None, })
-            records.append(record)
+            next_ent_id += 1
 
-        self.docs.upsert(records=records)
-        self.docs.create_index()
+        # --- Perform efficient batch operations ---
+        
+        # 1. Single batch insert to Supabase
+        if supabase_records_to_insert:
+            self.supabase.table("Article_Entry").insert(supabase_records_to_insert).execute()
+
+        # 2. Single batch upsert to the vector store
+        if vector_records_to_upsert:
+            self.docs.upsert(records=vector_records_to_upsert)
+        
+        # 3. (IMPORTANT) Remove index creation from this function.
+        self.docs.create_index() # <-- Move this to a separate, less frequent process.
 
     def print_stuff(self):
         print(f"\n=== Bill Title ===\n{self.title}\n")
