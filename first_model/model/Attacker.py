@@ -4,6 +4,7 @@ from supabase import create_client, Client
 from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import List, Literal
 from dotenv import load_dotenv
+from pathlib import Path
 
 # ------------------- ENV + CLIENTS -------------------
 
@@ -136,6 +137,10 @@ def get_law_context(ent_ids: List[int], table: str = "Article_Entry") -> str:
 
     return "\n".join(out)
 
+# ------------------- Prompt Helpers -------------------
+def load_prompt_template(path: str = "prompt_template/attacker_prompt.txt") -> str:
+    return Path(path).read_text(encoding="utf-8")
+
 # ------------------- Attack Logic -------------------
 
 def run_attack(
@@ -164,49 +169,13 @@ def run_attack(
     relevant_law = get_law_context(ent_ids)
 
     # 3. Build prompt
-    final_prompt = f"""
-You are the Adversarial Strategist Agent.
-Generate diverse, realistic attack scenarios that stress-test safety & legal compliance.
-Return ONLY JSON. No prose outside JSON.
-
-Task — Attack scenarios
-- Produce exactly {max_n} distinct scenarios (no fewer), each schema-compliant.
-- Each AttackScenario MUST include ONLY these keys:
-  - "description": string (clear, concrete attack story; ONE paragraph max; END with: (Attack vector: <short phrase>))
-  - "potential_violations": string[]
-  - "jurisdictions": string[] (law names, e.g., "EU Digital Services Act")
-  - "law_citations": int[] (ent_id values relied on)
-  - "rationale": string (why this matters for THIS PRD)
-  - "prd_spans": int[] (0-based PRD line indices, matching the <spanN> in PRD_SPANS)
-- Ground each scenario in the PRD lines you cite in "prd_spans".
-- Make scenarios DISTINCT (no near-duplicates).
-
-Self-check before returning:
-- "scenarios" has exactly {max_n} items.
-- Every scenario has non-empty "prd_spans" with valid line indices.
-- Each scenario cites at least one ent_id in "law_citations".
-
-Output shape (ONLY this JSON object, no comments):
-{{
-    "scenarios":[ ... exactly {max_n} items ... ]
-}}
-
-PRD (span-wrapped; 0-based indices are the N in <spanN>...):
-<<<PRD_SPANS>>>
-{prd_span}
-<<<END PRD_SPANS>>>
-
-PRD (raw text for readability):
-<<<PRD>>>
-{prd_text}
-<<<END PRD>>>
-
-Legal/Definition Context (each item has ent_id for citation):
-{relevant_law}
-
-Generate exactly {max_n} DISTINCT attack scenarios tied to this PRD, each citing ≥1 ent_id and including valid prd_spans.
-Return ONLY the JSON object with key "scenarios".
-""".strip()
+    template = load_prompt_template()
+    final_prompt = template.format(
+        max_n=max_n,
+        prd_span=prd_span,
+        prd_text=prd_text,
+        relevant_law=relevant_law,
+    )
 
     # 4. Call Claude
     resp = anthropic_client.messages.create(
