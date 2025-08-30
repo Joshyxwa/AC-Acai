@@ -380,6 +380,9 @@ class Database():
             .execute()
         )
         return ins.data[0] if ins.data else None
+    
+    def get_whole_message(self, content):
+        return self.supabase.table("Message").select("*").eq("content", content).single().execute().data
 
     def get_current_timestamp(self):
         from datetime import datetime
