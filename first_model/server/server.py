@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from ..database.Database import Database
 from ..io.IO import IO
 from fastapi import UploadFile, File, Depends, Request
+from fastapi import BackgroundTasks
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
@@ -240,6 +241,7 @@ class AuditRunIn(BaseModel):
     project_id: int
     max_scenarios: int = 3
     create_audit: Optional[bool] = False
+    async_run: Optional[bool] = False
 
 # ---------- Helpers ----------
 def _now_hhmm() -> str:
@@ -448,7 +450,7 @@ def root():
     ]}
 
 @app.post("/audit/run")
-def audit_run(payload: AuditRunIn, io: IO = Depends(get_io)):
+def audit_run(payload: AuditRunIn, io: IO = Depends(get_io), background_tasks: BackgroundTasks = None):
     # If requested, create an Audit row first and run with status updates
     if payload.create_audit:
         created = io.create_audit(project_id=payload.project_id, status="pending")
@@ -465,8 +467,34 @@ def audit_run(payload: AuditRunIn, io: IO = Depends(get_io)):
                 pass
         if audit_id is None:
             raise HTTPException(status_code=500, detail="Failed to determine audit_id")
+        if payload.async_run:
+            # Queue background execution and return immediately
+            if background_tasks is None:
+                raise HTTPException(status_code=500, detail="Background tasks not available")
+            background_tasks.add_task(io.run_audit_pipeline_for_audit_and_update, audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
+            return {"started": True, "audit_id": audit_id, "status": "in_progress"}
         res = io.run_audit_pipeline_for_audit_and_update(audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
     else:
+        if payload.async_run:
+            # Ensure an audit exists to track status, then run in background
+            created = io.create_audit(project_id=payload.project_id, status="pending")
+            if not created.get("ok"):
+                raise HTTPException(status_code=500, detail=created.get("error") or "Failed to create audit")
+            audit_obj = created.get("data") or {}
+            audit_id = audit_obj.get("audit_id") if isinstance(audit_obj, dict) else None
+            if audit_id is None:
+                # Fallback: lookup most recent audit for project
+                try:
+                    rows = io.database.supabase.table("Audit").select("audit_id").eq("project_id", payload.project_id).order("created_at", desc=True).limit(1).execute().data
+                    audit_id = (rows[0]["audit_id"] if rows else None)
+                except Exception:
+                    pass
+            if audit_id is None:
+                raise HTTPException(status_code=500, detail="Failed to determine audit_id for async run")
+            if background_tasks is None:
+                raise HTTPException(status_code=500, detail="Background tasks not available")
+            background_tasks.add_task(io.run_audit_pipeline_for_audit_and_update, audit_id=audit_id, project_id=payload.project_id, max_scenarios=payload.max_scenarios)
+            return {"started": True, "audit_id": audit_id, "status": "in_progress"}
         res = io.run_audit_pipeline(project_id=payload.project_id, max_scenarios=payload.max_scenarios)
     if not res.get("ok"):
         raise HTTPException(status_code=500, detail=res.get("error") or "Audit pipeline failed")

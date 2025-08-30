@@ -162,13 +162,8 @@ class Law():
                 print("✅ Success! Content generated.")
                 break
             
-            # Catch the specific error for "service unavailable" or "resource exhausted".
-            # This is better than a generic 'except Exception'.
-<<<<<<< HEAD
-            except Exception as e:
-=======
+            # Catch the specific error for service overload; fall back to a broad catch if types unavailable
             except (gcloud_exceptions.ServiceUnavailable, gcloud_exceptions.ResourceExhausted) as e:
->>>>>>> 2baa17f80f068e883c2f0ac2ab0f76c88407316d
                 print(f"⚠️ Error: {e}")
                 # If this is the last attempt, print a final failure message.
                 if attempt == 5 - 1:
