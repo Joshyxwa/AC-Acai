@@ -218,7 +218,7 @@ class ProjectDetails(BaseModel):
     documents: List[DocumentRow]
 
 class HighlightActionRequest(BaseModel):
-    highlight_id: str = Field(..., alias="highlight-id")
+    highlight_id: int = Field(..., alias="highlight-id")
     document_id: str = Field(..., alias="document-id")
     project_id: str = Field(..., alias="project-id")
     user_response: str
@@ -313,40 +313,43 @@ def get_document(project_id: str, document_id: str):
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)
 def get_highlight_response(req: HighlightActionRequest):
-    _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.document_id)
-    hl = _find_highlight_or_404(doc, req.highlight_id)
+    # _ = _get_project_or_404(req.project_id)
+    # doc = _get_document_or_404(req.document_id)
+    # hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    # Append a system response (dummy) and also echo it back
-    generated_id = f"response-{_epoch_ms_str()}"
-    response = {
-        "id": generated_id,
-        "author": "GeoCompliance AI",
-        "timestamp": _now_hhmm(),
-        "content": (
-            f'Thank you for your input. Based on your comment "{req.user_response}", '
-            "I recommend reviewing the latest GDPR guidelines section 4.2 for data processing compliance. "
-            "This should address your concerns about user consent flows."
-        ),
-        "type": "system",
-    }
-    hl.setdefault("comments", []).append(response)
+    # # Append a system response (dummy) and also echo it back
+    # generated_id = f"response-{_epoch_ms_str()}"
+    # response = {
+    #     "id": generated_id,
+    #     "author": "GeoCompliance AI",
+    #     "timestamp": _now_hhmm(),
+    #     "content": (
+    #         f'Thank you for your input. Based on your comment "{req.user_response}", '
+    #         "I recommend reviewing the latest GDPR guidelines section 4.2 for data processing compliance. "
+    #         "This should address your concerns about user consent flows."
+    #     ),
+    #     "type": "system",
+    # }
+    # hl.setdefault("comments", []).append(response)
+    print(req)
+    response = dc.add_message_reply(int(req.highlight_id), req.user_response, author_type="user")
     return response
 
 @app.post("/add_comment")
 def add_comment(req: HighlightActionRequest):
-    _ = _get_project_or_404(req.project_id)
-    doc = _get_document_or_404(req.document_id)
-    hl = _find_highlight_or_404(doc, req.highlight_id)
+    # _ = _get_project_or_404(req.project_id)
+    # doc = _get_document_or_404(req.document_id)
+    # hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    comment = {
-        "id": f"comment-{_epoch_ms_str()}",
-        "author": req.author or "User",
-        "timestamp": _now_hhmm(),
-        "content": req.user_response,
-        "type": "user",
-    }
-    hl.setdefault("comments", []).append(comment)
+    # comment = {
+    #     "id": f"comment-{_epoch_ms_str()}",
+    #     "author": req.author or "User",
+    #     "timestamp": _now_hhmm(),
+    #     "content": req.user_response,
+    #     "type": "user",
+    # }
+    # hl.setdefault("comments", []).append(comment)
+    dc.add_message_for_issue(int(req.highlight_id), req.user_response, author_type="user")
     return {"ok": True, "message": "Comment added"}
 
 @app.post("/add_law")

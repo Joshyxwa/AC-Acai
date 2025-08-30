@@ -300,6 +300,72 @@ class Database():
             pass
         return minimum_value
 
+    def add_message_for_issue(self, issue_id: int, content: str, author_type: str = "user"):
+        # Find (or validate) the conversation for this issue
+        conv_rows = (
+            self.supabase
+            .table("Conversation")
+            .select("conv_id")
+            .eq("issue_id", issue_id)
+            .limit(1)
+            .execute()
+        ).data or []
+
+        if not conv_rows:
+            raise ValueError(f"No conversation found for issue_id={issue_id}")
+
+        conv_id = conv_rows[0]["conv_id"]
+
+        # Insert new message
+        created_at = self.get_current_timestamp()
+        insert_payload = {
+            "created_at": created_at,   # or omit if DB default handles it
+            "type": author_type,        # "system" or "user"
+            "content": content,
+            "conv_id": conv_id,
+        }
+
+        ins = (
+            self.supabase
+            .table("Message")
+            .insert(insert_payload)
+            .execute()
+        )
+        return ins.data[0] if ins.data else None
+
+    # 2) Add a message as a reply to an existing message (same conversation)
+    def add_message_reply(self, reply_to_msg_id: int, content: str, author_type: str = "user"):
+        # Look up the conversation of the original message
+        base_msg_rows = (
+            self.supabase
+            .table("Message")
+            .select("conv_id")
+            .eq("msg_id", reply_to_msg_id)
+            .limit(1)
+            .execute()
+        ).data or []
+
+        if not base_msg_rows:
+            raise ValueError(f"Base message not found: msg_id={reply_to_msg_id}")
+
+        conv_id = base_msg_rows[0]["conv_id"]
+
+        created_at = self.get_current_timestamp()
+        insert_payload = {
+            "created_at": created_at,
+            "type": author_type,   # "ai" or "user"
+            "content": content,
+            "conv_id": conv_id,
+        }
+
+        ins = (
+            self.supabase
+            .table("Message")
+            .insert(insert_payload)
+            .execute()
+        )
+        return ins.data[0] if ins.data else None
+
     def get_current_timestamp(self):
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
