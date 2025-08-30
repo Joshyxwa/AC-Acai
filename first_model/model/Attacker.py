@@ -193,9 +193,9 @@ def run_attack(
     bundle = _validate_bundle_or_explain(data, max_n)
     return bundle
 
-if __name__ == "__main__":
-    print("--- Running Attack ---")
-    ent_ids = [1, 2, 3]
-    result = run_attack(ent_ids, max_n=3, prd_doc_id=1)
-    print(result.model_dump_json(indent=2))
+# if __name__ == "__main__":
+#     print("--- Running Attack ---")
+#     ent_ids = [1, 2, 3]
+#     result = run_attack(ent_ids, max_n=3, prd_doc_id=1)
+#     print(result.model_dump_json(indent=2))
 

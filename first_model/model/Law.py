@@ -134,22 +134,22 @@ class Auditor():
         print("--- Synthesis Complete ---")
         return response.text
     
-if __name__ == "__main__":
-    print("--- Initializing Auditor ---")
-    auditor = Auditor()
+# if __name__ == "__main__":
+#     print("--- Initializing Auditor ---")
+#     auditor = Auditor()
     
-    # --- Provide the list of document IDs to check TOGETHER ---
-    # These documents will be read and analyzed as a single unit.
-    combined_document_ids = [1, 2] 
+#     # --- Provide the list of document IDs to check TOGETHER ---
+#     # These documents will be read and analyzed as a single unit.
+#     combined_document_ids = [1, 2] 
     
-    try:
-        # Call the new combined audit method
-        final_results = auditor.audit(doc_ids=combined_document_ids)
+#     try:
+#         # Call the new combined audit method
+#         final_results = auditor.audit(doc_ids=combined_document_ids)
         
-        print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
-        print(final_results)
+#         print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
+#         print(final_results)
         
-    except Exception as e:
-        print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {e}")
+#     except Exception as e:
+#         print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
+#         print(f"Error Type: {type(e).__name__}")
+#         print(f"Error Details: {e}")
