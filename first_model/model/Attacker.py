@@ -150,7 +150,12 @@ class Attacker():
 
     # ------------------- Prompt Helpers -------------------
     @staticmethod
-    def load_prompt_template(path: str = "first_model/model/prompt_template/attacker_prompt.txt") -> str:
+    def load_prompt_template(path: str = None) -> str:
+        if path is None:
+            # Always resolve relative to this file
+            path = Path(__file__).parent / "prompt_template" / "attacker_prompt.txt"
+        else:
+            path = Path(path)
         return Path(path).read_text(encoding="utf-8")
 
     # ------------------- Attack Logic -------------------
@@ -161,6 +166,7 @@ class Attacker():
         *, #Everything after the * (max_n, prd_doc_id) must be passed as keyword arguments.
         max_n: int = 3,
         prd_doc_id: int,
+        tdd_doc_id: int,
     ) -> AuditBundle:
         """
         Run an attack analysis: fetch PRD doc, call Claude, parse+validate JSON.
@@ -178,6 +184,19 @@ class Attacker():
         prd_text = (doc_rows[0].get("content") if doc_rows else "") or ""
         prd_span = (doc_rows[0].get("content_span") if doc_rows else "") or ""
 
+        tdd_text = ""
+
+        if tdd_doc_id is not None:
+            tdd_rows = (
+                self.supabase.table("Document")
+                .select("content")
+                .eq("doc_id", tdd_doc_id)
+                .limit(1)
+                .execute()
+                .data
+            )
+            tdd_text = (tdd_rows[0].get("content") if tdd_rows else "") or ""
+
         # 2. Build law context from ent_ids
         relevant_law = self.get_law_context(ent_ids)
 
@@ -187,6 +206,7 @@ class Attacker():
             max_n=max_n,
             prd_span=prd_span,
             prd_text=prd_text,
+            tdd_text=tdd_text,
             relevant_law=relevant_law,
         )
 
@@ -214,9 +234,10 @@ class Attacker():
 
 
 
-# if __name__ == "__main__":
-#     print("--- Running Attack ---")
-#     ent_ids = [1, 2, 3]
-#     result = run_attack(ent_ids, max_n=3, prd_doc_id=1)
-#     print(result.model_dump_json(indent=2))
+if __name__ == "__main__":
+    print("--- Running Attack ---")
+    ent_ids = list(range(1, 11))
+    attacker = Attacker()
+    result = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=1, tdd_doc_id=2)
+    print(result)
 
