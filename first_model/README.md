@@ -211,7 +211,7 @@ Response:
 
 ---
 
-🛠 Development Notes
-	•	Default dev server runs at http://127.0.0.1:8000.
-    •	Front-End React App at http://127.0.0.1:8080.
+#### 🛠 Development Notes
+- Default dev server runs at http://127.0.0.1:8000.
+- Front-End React App at http://127.0.0.1:8080.
 
