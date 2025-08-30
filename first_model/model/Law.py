@@ -67,11 +67,7 @@ class Auditor():
             limit=3,                         # number of records to return
             # filters={"year": {"$eq": 2012}}, # metadata filters
         )
-        law_list=[]
-        for index in index_list:
-            law_list.append(self.docs[index])
-        print("--- Search Complete ---")
-        return law_list
+        return index_list
     
     def __fetch_document_content(self, doc_id: int) -> str:
         """Fetches the content of a single document to be audited."""
