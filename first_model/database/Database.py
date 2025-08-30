@@ -69,7 +69,8 @@ class Database():
             # Best-effort fallback
             return conv_id if conv_id is not None else 1
 
-    def save_audit(self, audit_id = None, project_id = None, status = None):
+    def save_audit(self, project_id: int, status: str, audit_id: int | None = None):
+        """Create an Audit row with optional explicit audit_id."""
         return self.save_data("Audit", {
             "audit_id": audit_id or self.get_next_id("Audit", "audit_id"),
             "created_at": self.get_current_timestamp(),
@@ -78,8 +79,13 @@ class Database():
         })
 
     def save_message(self, message: str | None = None, type: str | None = None, conv_id: int | None = None, created_at: str | None = None):
-        """Persist a message. Prefer passing conv_id explicitly; falls back to self.conv_id if set."""
-        cid = conv_id if conv_id is not None else self.conv_id
+        """Persist a message. If conv_id is not provided, create/resolve a conversation id automatically."""
+        cid = conv_id
+        if cid is None:
+            # Try to use an existing attribute if set, else create a new conversation id
+            cid = getattr(self, "conv_id", None)
+            if cid is None:
+                cid = self.get_conversation(None)
         payload = {
             "msg_id": self.get_next_id("Message", "msg_id"),
             "created_at": created_at or self.get_current_timestamp(),
@@ -102,7 +108,8 @@ class Database():
     def save_article_definition(self, art_num, belongs_to, content, word, embedding = None):
         return self.save_data("Article_Entry", {
             "ent_id": self.get_next_id("Article_Entry", "ent_id"),
-            "content": content,
+            # Keep 'contents' for consistency with other codepaths
+            "contents": content,
             "word": word,
             "art_num": art_num,
             "belongs_to": belongs_to,
@@ -123,13 +130,9 @@ class Database():
             "embedding": embedding
         })
 
-    def save_audit(self, project_id, status):
-        return self.save_data("Audit", {
-            "audit_id": self.get_next_id("Audit", "audit_id"),
-            "created_at": self.get_current_timestamp(),
-            "project_id": project_id,
-            "status": status,
-        })
+    def update_audit_status(self, audit_id: int, status: str):
+        """Update the status of an existing audit row."""
+        return self.supabase.table("Audit").update({"status": status}).eq("audit_id", audit_id).execute()
     
     def save_document(self, project_id, doc_id = None, type = None, content = None, version = None):
         return self.save_data("Document", {
@@ -150,8 +153,16 @@ class Database():
             "name": name
         })
 
-    def load_audit(self, audit_id, **kwargs):
-        return self.load_data("Audit", audit_id, **kwargs)
+    def get_audit(self, audit_id: int):
+        resp = (
+            self.supabase
+            .table("Audit")
+            .select("*")
+            .eq("audit_id", audit_id)
+            .single()
+            .execute()
+        )
+        return resp.data
 
     def load_conversation(self, conv_id, **kwargs):
         return self.load_data("Conversation", conv_id, **kwargs)
@@ -231,12 +242,16 @@ class Database():
                 issues.extend(issue_details)
 
         for issue in issues: 
-            evidence = issue['evidence']
+            evidence = issue.get('evidence')
+            if not evidence:
+                continue
             if isinstance(evidence, str):
                 evidence = json.loads(evidence)
             for key, value in evidence.items():
                 if str(key) == str(document_id): # only find for this current document_id 
-                    highlighting = get_span_ranges(document["content"], document["content_span"], value)
+                    content = document.get("content") or ""
+                    content_span = document.get("content_span") or ""
+                    highlighting = get_span_ranges(content, content_span, value)
 
                     conv = (
                         self.supabase
