@@ -5,12 +5,17 @@ from typing import List, Dict, Tuple
 from supabase import create_client
 from Database import Database
 from pathlib import Path
+from transformers import AutoTokenizer, AutoModel
+import torch
+import vecs
 
 class Parser():
     def __init__(self):
         load_dotenv("./secrets/.env.dev")
         self.__URL = os.environ.get("SUPABASE_URL")
         self.__KEY = os.environ.get("SUPABASE_KEY")
+        self.__REF = os.environ.get("SUPABASE_REF")
+        self.__PASS = os.environ.get("SUPABASE_PASSWORD")
         self.supabase = create_client(self.__URL, self.__KEY)
 
         self.title = ""
@@ -18,10 +23,31 @@ class Parser():
         self.articles: List[Dict[str, str]] = []
         self.wd= Path(__file__).parent
 
+        # Initialize Legal-BERT model
+        self.tokenizer = AutoTokenizer.from_pretrained("nlpaueb/legal-bert-base-uncased")
+        self.model = AutoModel.from_pretrained("nlpaueb/legal-bert-base-uncased")
+        DB_CONNECTION = f"postgresql://postgres.{self.__REF}:{self.__PASS}@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
+        self.vx = vecs.create_client(DB_CONNECTION)
+        self.docs = self.vx.get_or_create_collection(name="Article_Entry", dimension=768)
 
-    def parse(self, file_path: str):
-        with open(self.wd/file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+
+    def get_embedding(self, text: str):
+        """Generate sentence embedding for a given text."""
+        encoded_input = self.tokenizer(
+            text,
+            truncation=True,
+            padding=True,
+            max_length=512,
+            return_tensors="pt"
+        )
+        with torch.no_grad():
+            output = self.model(**encoded_input)
+        # Use pooled output for sentence embeddings
+        return output.pooler_output[0].tolist()
+
+    def parse(self, content):
+        #with open(self.wd/file_path, "r", encoding="utf-8") as f:
+        #    content = f.read()
 
         # Extract the title (first non-empty line)
         lines = content.splitlines()
@@ -36,6 +62,8 @@ class Parser():
         articles_block = re.split(r'(Article\s+\d+\s*—)', content)
         if len(articles_block) > 1:
             self._parse_articles(articles_block)
+
+        self.save_to_db()
 
     def _parse_articles(self, split_articles: List[str]):
         """
@@ -88,9 +116,9 @@ class Parser():
         return minimum_value
 
     def save_to_db(self):
+        records = []
         for definition in self.definitions:
             self.supabase.table("Article_Entry").insert({
-                "ent_id": self.get_next_id(),
                 "art_num": definition["art_num"],
                 "type": "Definition",
                 "belongs_to": self.title,
@@ -99,9 +127,20 @@ class Parser():
                 "embedding": None
             }).execute()
 
+            embedding = self.get_embedding(definition["def_content"])
+            record = (
+                self.get_next_id(),
+                embedding,
+                "art_num": definition["art_num"],
+                "type": "Definition",
+                "belongs_to": self.title,
+                "contents": definition["def_content"],
+                "word": entry["word"],
+            )
+            records.append(record)
+
         for article in self.articles:
             self.supabase.table("Article_Entry").insert({
-                "ent_id": self.get_next_id(),
                 "art_num": article["art_num"],
                 "type": "Law",
                 "belongs_to": self.title,
@@ -109,6 +148,21 @@ class Parser():
                 "word": None,
                 "embedding": None
             }).execute()
+
+            embedding = self.get_embedding(article["content"])
+            record = (
+                self.get_next_id(),
+                embedding,
+                "art_num": article["art_num"],
+                "type": "Law",
+                "belongs_to": self.title,
+                "contents": article["content"],
+                "word": None,
+            )
+            records.append(record)
+
+        self.docs.upsert(records=records)
+        self.docs.create_index()
 
     def print_stuff(self):
         print(f"\n=== Bill Title ===\n{self.title}\n")
@@ -126,6 +180,9 @@ class Parser():
         else:
             for article in self.articles:
                 print(f"{article['art_num']}: {article['contents']}\n")
+
+    def get_bill(self):
+        return self.title
 
 
 if __name__ == "__main__":
