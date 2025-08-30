@@ -166,6 +166,8 @@ JSON
     }
 }
 
+laws = [] # temporary storage
+
 # ---------- Pydantic Models ----------
 class ProjectSummary(BaseModel):
     id: str
@@ -208,6 +210,13 @@ class HighlightActionRequest(BaseModel):
 
 class HighlightResponse(Comment):
     pass
+
+class Law(BaseModel):
+    article_number: str
+    type: Literal["recital", "law", "definition"]
+    belongs_to: str
+    contents: str
+    word: Optional[str] = None  # only required if type=definition
 
 # ---------- Helpers ----------
 def _now_hhmm() -> str:
@@ -292,6 +301,17 @@ def add_comment(req: HighlightActionRequest):
     }
     hl.setdefault("comments", []).append(comment)
     return {"ok": True, "message": "Comment added"}
+
+@app.post("/add_law")
+def add_law(law: Law):
+    # Validation: if type=definition, word must be provided
+    if law.type == "definition" and not law.word:
+        return {"ok": False, "message": "Word must be provided for definition type laws."}
+
+    print(f"Adding law: {law.dict()}")
+    # Add to "DB"
+    laws.append(law.dict())
+    return {"ok": True, "message": "Law added successfully", "law": law.dict()}
 
 # Optional root
 @app.get("/")
