@@ -173,14 +173,6 @@ JSON
 laws = [] # temporary storage
 
 # ---------- Pydantic Models ----------
-class ProjectSummary(BaseModel):
-    id: str
-    title: str
-    lastModified: str
-    documents: int
-    collaborators: int
-    status: Literal["In Review", "Flagged", "Compliant"]
-
 class ProjectRow(BaseModel):
     project_id: int
     created_at: str
@@ -188,19 +180,32 @@ class ProjectRow(BaseModel):
     description: str
     name: str
 
+class DocumentRow(BaseModel):
+    doc_id: int
+    created_at: str
+    type: str          # e.g., "TDD", "PRD", "Security"
+    content: str
+    version: int
+    project_id: int
+    content_span: Optional[str] = None  # JSON/string span index if you need it
+
 class Comment(BaseModel):
-    id: str
+    id: int
     author: str
     timestamp: str
     content: str
     type: Literal["system", "user"]
 
-class Highlight(BaseModel):
-    id: str
+class HighlightSpans(BaseModel):
     start: int
     end: int
-    text: str
-    comments: List[Comment]
+
+class Highlight(BaseModel):
+    id: int
+    highlighting: List[HighlightSpans]
+    reason: str
+    clarification_qn: str
+    comments: Optional[List[Comment]]
 
 class DocumentPayload(BaseModel):
     title: str
@@ -210,7 +215,7 @@ class DocumentPayload(BaseModel):
 class ProjectDetails(BaseModel):
     id: str
     title: str
-    documents: List[Dict[str, str]]
+    documents: List[DocumentRow]
 
 class HighlightActionRequest(BaseModel):
     highlight_id: str = Field(..., alias="highlight-id")
@@ -238,14 +243,30 @@ def _epoch_ms_str() -> str:
     return str(int(datetime.now(tz=timezone.utc).timestamp() * 1000))
 
 def _get_project_or_404(project_id: str) -> Dict:
-    if project_id not in project_details:
+    try:
+        project_id_int = int(project_id)
+        result = dc.get_project_with_documents(project_id=project_id_int)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return result
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project_id format")
+    except Exception:
         raise HTTPException(status_code=404, detail="Project not found")
-    return project_details[project_id]
 
-def _get_document_or_404(document_id: str) -> Dict:
-    if document_id not in document_content:
+def _get_document_or_404(project_id, document_id: str) -> Dict:
+    result = dc.load_document_with_highlighting(int(project_id), int(document_id))
+
+    try:
+        result = dc.load_document_with_highlighting(int(project_id), int(document_id))
+        # print(result)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return result
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project_id or document_id format")
+    except Exception:
         raise HTTPException(status_code=404, detail="Document not found")
-    return document_content[document_id]
 
 def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
     for h in doc.get("highlights", []):
@@ -287,8 +308,7 @@ def get_project(project_id: str):
 def get_document(project_id: str, document_id: str):
     # for demo we don't cross-validate that document belongs to project,
     # but you can enforce that if you store per-project docs
-    _ = _get_project_or_404(project_id)
-    doc = _get_document_or_404(document_id)
+    doc = _get_document_or_404(project_id, document_id)
     return doc
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)

@@ -1,6 +1,24 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client
+import json
+import re
+
+def get_span_ranges(content: str, content_span: str, target_spans: list[str]):
+    # Extract span_id -> inner text
+    span_pattern = re.compile(r"<(span\d+)>(.*?)</\1>", re.DOTALL)
+    matches = span_pattern.findall(content_span)
+    span_map = {span_id: inner_text for span_id, inner_text in matches}
+
+    results = []
+    for span_id in target_spans:
+        inner = span_map.get(span_id)
+        if inner:
+            start = content.find(inner)
+            if start != -1:
+                end = start + len(inner)
+                results.append({"start": start, "end": end})
+    return results
 
 class Database():
     def __init__(self):
@@ -147,8 +165,126 @@ class Database():
     def load_issue(self, issue_id, **kwargs):
         return self.load_data("Issue", issue_id, **kwargs)
 
-    def load_project(self, project_id, **kwargs):
-        return self.load_data("Project", project_id=project_id, **kwargs)
+    def get_project_with_documents(self, project_id: int):
+        proj = (
+            self.supabase
+            .table("Project")
+            .select("project_id, name")
+            .eq("project_id", project_id)
+            .single()
+            .execute()
+        )
+
+        if not proj.data: return None
+
+        docs = (
+            self.supabase
+            .table("Document")
+            .select("*")
+            .eq("project_id", project_id)
+            .order("doc_id")
+            .execute()
+        ).data
+
+        # 4. Construct the response
+        result = {
+            "id": str(proj.data["project_id"]),
+            "title": proj.data["name"],
+            "documents": docs
+        }
+        return result
+
+    def load_document_with_highlighting(self, project_id, document_id):
+        document = (
+            self.supabase
+            .table("Document")
+            .select("*")
+            .eq("project_id", project_id)
+            .eq("doc_id", document_id)
+            .single()
+            .execute()
+        ).data
+
+        if not document:
+            return None
+
+        audits = (
+            self.supabase
+            .table("Audit")
+            .select("audit_id")
+            .eq("project_id", project_id)
+            .execute()
+        ).data
+
+        issues = []
+        highlights = []
+
+        for audit in audits:
+            issue_details = (
+                self.supabase
+                .table("Issue")
+                .select("*")
+                .eq("audit_id", audit["audit_id"])
+                .execute()
+            ).data
+            if issue_details:
+                issues.extend(issue_details)
+
+        for issue in issues: 
+            evidence = issue['evidence']
+            if isinstance(evidence, str):
+                evidence = json.loads(evidence)
+            for key, value in evidence.items():
+                if str(key) == str(document_id): # only find for this current document_id 
+                    highlighting = get_span_ranges(document["content"], document["content_span"], value)
+
+                    conv = (
+                        self.supabase
+                        .table("Conversation")
+                        .select("*")
+                        .eq("issue_id", issue["issue_id"])
+                        .execute()
+                    ).data
+
+                    final_messages = []
+
+                    if conv:
+                        conv_id = conv[0]['conv_id']
+
+                        messages = (
+                            self.supabase
+                            .table("Message")
+                            .select("*")
+                            .eq("conv_id", conv_id)
+                            .execute()
+                        ).data
+
+                        for message in messages:
+                            final_messages.append({
+                                "id": message["msg_id"],
+                                "author": "GeoCompliance AI" if message["type"] == "ai" else "User",
+                                "content": message["content"],
+                                "type": "system" if message["type"] == "ai" else "user",
+                                "timestamp": message["created_at"]
+                            })
+
+                    highlight = {
+                        "id": issue["issue_id"],
+                        "highlighting": highlighting,
+                        "reason": issue["issue_description"],
+                        "clarification_qn": issue["clarification_qn"],
+                        "comments": final_messages
+                    }
+
+                    if final_messages:
+                        highlights.append(highlight)
+
+        return {
+            # "title": document["title"],
+            "title": "DOCUMENT",
+            "content": document["content"],
+            "highlights": highlights
+        }
 
     def load_all_projects(self):
         return self.load_data("Project")
