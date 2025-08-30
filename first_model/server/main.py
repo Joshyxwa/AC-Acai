@@ -1,6 +1,6 @@
 from first_model.database.Database import Database
 from first_model.model.Law import Law
-from first_model.model.Attacker import Attacker
+from first_model.model.Attackerv2 import Attacker
 from first_model.model.Auditor import Auditor
 import json
 database = Database()
