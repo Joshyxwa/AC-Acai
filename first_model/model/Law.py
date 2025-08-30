@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
 import vecs
 import time
-from google.api_core import exceptions
 load_dotenv("./secrets/.env.dev")
 
 class Law():
