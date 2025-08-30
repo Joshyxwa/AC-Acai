@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Literal
 from datetime import datetime, timezone
 from database.Database import Database
+from fastapi import UploadFile, File
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
@@ -332,15 +333,16 @@ def add_comment(req: HighlightActionRequest):
     return {"ok": True, "message": "Comment added"}
 
 @app.post("/add_law")
-def add_law(law: Law):
-    # Validation: if type=definition, word must be provided
-    if law.type == "definition" and not law.word:
-        return {"ok": False, "message": "Word must be provided for definition type laws."}
-
-    print(f"Adding law: {law.dict()}")
-    # Add to "DB"
-    laws.append(law.dict())
-    return {"ok": True, "message": "Law added successfully", "law": law.dict()}
+async def add_law(file: UploadFile = File(...)):
+    if file.content_type != "text/plain":
+        return {"ok": False, "message": "Only .txt files are accepted."}
+    try:
+        contents = await file.read()
+        text = contents.decode("utf-8")
+        print(text)
+        return {"ok": True, "message": "File uploaded and printed successfully."}
+    except Exception as e:
+        return {"ok": False, "message": f"Failed to process file: {str(e)}"}
 
 # Optional root
 @app.get("/")
