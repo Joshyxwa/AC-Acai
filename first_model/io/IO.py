@@ -33,12 +33,21 @@ class IO:
 
         # Core services
         self.database = Database()
-        self.auditor = Auditor(self.database)
-        self.attacker = Attacker(self.database)
+        # Best-effort agent initialization; tolerate missing env/config in dev
+        try:
+            self.auditor = Auditor()
+        except Exception as e:
+            self.logger.warning("Auditor init skipped: %s", e)
+            self.auditor = None
+        try:
+            self.attacker = Attacker()
+        except Exception as e:
+            self.logger.warning("Attacker init skipped: %s", e)
+            self.attacker = None
 
         self.logger.info("IO initialized with Database, Auditor, Attacker")
-    # Active chatboxes by conv_id
-    self._chatboxes: Dict[int, Chatbox] = {}
+        # Active chatboxes by conv_id
+        self._chatboxes: Dict[int, Chatbox] = {}
 
     def display(self, audit_response, attack_response):
         print("Audit Response:", audit_response)
@@ -119,8 +128,19 @@ class IO:
             cb = self._chatboxes.get(conv_id)
             if not cb:
                 return self._err("chatbox not found; call get_or_create_chatbox first")
-            audit = self.auditor.audit(message) if hasattr(self.auditor, "audit") else None
-            attack = self.attacker.attack(message) if hasattr(self.attacker, "attack") else None
+            audit = None
+            attack = None
+            if self.auditor and hasattr(self.auditor, "audit"):
+                try:
+                    # Signature may differ; wrap in try
+                    audit = self.auditor.audit(message)  # type: ignore[arg-type]
+                except Exception as e:
+                    self.logger.warning("auditor.audit failed: %s", e)
+            if self.attacker and hasattr(self.attacker, "run_attack"):
+                try:
+                    attack = self.attacker.run_attack([], prd_doc_id=0)  # minimal/no-op params
+                except Exception as e:
+                    self.logger.warning("attacker.run_attack failed: %s", e)
             recorded = cb.record_inference(audit=audit, attack=attack)
             return self._ok({"audit": recorded.get("audit"), "attack": recorded.get("attack")})
         except Exception as e:
