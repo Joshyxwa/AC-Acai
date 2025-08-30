@@ -3,7 +3,7 @@ import re
 from dotenv import load_dotenv
 from typing import List, Dict, Tuple
 from supabase import create_client
-from first_model.database.Database import Database
+from Database import Database
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModel
 import torch
@@ -119,6 +119,7 @@ class Parser():
         records = []
         for definition in self.definitions:
             self.supabase.table("Article_Entry").insert({
+                "ent_id": self.get_next_id(),
                 "art_num": definition["art_num"],
                 "type": "Definition",
                 "belongs_to": self.title,
@@ -135,11 +136,12 @@ class Parser():
                 "type": "Definition",
                 "belongs_to": self.title,
                 "contents": definition["def_content"],
-                "word": entry["word"],})
+                "word": definition["word"],})
             records.append(record)
 
         for article in self.articles:
             self.supabase.table("Article_Entry").insert({
+                "ent_id": self.get_next_id(),
                 "art_num": article["art_num"],
                 "type": "Law",
                 "belongs_to": self.title,
@@ -148,14 +150,14 @@ class Parser():
                 "embedding": None
             }).execute()
 
-            embedding = self.get_embedding(article["content"])
+            embedding = self.get_embedding(article["contents"])
             record = (
                 self.get_next_id(),
                 embedding, {
                 "art_num": article["art_num"],
                 "type": "Law",
                 "belongs_to": self.title,
-                "contents": article["content"],
+                "contents": article["contents"],
                 "word": None, })
             records.append(record)
 
@@ -185,7 +187,8 @@ class Parser():
 """
 if __name__ == "__main__":
     parser = Parser()
-    parser.parse(file_path="bills/dtsa.txt")
-    #parser.save_to_db()
+    f = open("/home/kipp/fun/hackathons/AC-Acai/first_model/database/bills/smaf.txt", "r", encoding="utf-8")
+    content = f.read()
+    parser.parse(content)
     parser.print_stuff()
 """
