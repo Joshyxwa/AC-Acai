@@ -289,7 +289,7 @@ def get_highlight_response(req: HighlightActionRequest):
     doc = _get_document_or_404(req.document_id)
     hl = _find_highlight_or_404(doc, req.highlight_id)
 
-    # Append a system response (dummy) and also echo it back
+    # TODO: Append a system response (dummy) and also echo it back
     generated_id = f"response-{_epoch_ms_str()}"
     response = {
         "id": generated_id,
