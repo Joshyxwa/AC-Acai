@@ -7,6 +7,7 @@ from first_model.database.Database import Database
 from first_model.io.IO import IO
 from first_model.model.Chat import Chat
 from fastapi import UploadFile, File, Depends, Request
+from first_model.server.main import audit_project
 
 app = FastAPI(title="GeoCompliance Mock Server", version="0.1.0")
 dc = Database()
@@ -229,6 +230,9 @@ class HighlightActionRequest(BaseModel):
 class HighlightResponse(Comment):
     pass
 
+class AuditRequest(BaseModel):
+    project_id: str
+
 class Law(BaseModel):
     article_number: str
     type: Literal["recital", "law", "definition"]
@@ -276,10 +280,10 @@ def _find_highlight_or_404(doc: Dict, highlight_id: str) -> Dict:
             return h
     raise HTTPException(status_code=404, detail="Highlight not found")
 
-def audit_project(project_id: int):
-    documents = Database.load_document(project_id=project_id)
-    print(documents)
-    pass    
+# def audit_project(project_id: int):
+#     documents = Database.load_document_ids(project_id=project_id)
+#     print(documents)
+#     pass    
 
 # ---------- Endpoints ----------
 # @app.on_event("startup")
@@ -312,6 +316,12 @@ def get_document(project_id: str, document_id: str):
     # but you can enforce that if you store per-project docs
     doc = _get_document_or_404(project_id, document_id)
     return doc
+
+@app.post("/new_audit")
+def new_audit(req: AuditRequest):
+    # Validate and process the audit request
+    audit_project(int(req.project_id), dc)
+    return {"ok": True, "message": "Audit created"}
 
 @app.post("/get_highlight_response", response_model=HighlightResponse)
 def get_highlight_response(req: HighlightActionRequest):
