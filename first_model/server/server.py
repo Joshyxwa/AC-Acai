@@ -388,17 +388,16 @@ def add_comment(req: HighlightActionRequest):
 async def add_law(file: UploadFile = File(...)):
     if file.content_type != "text/plain":
         return {"ok": False, "message": "Only .txt files are accepted."}
-    try:
-        contents = await file.read()
-        text = contents.decode("utf-8")
-        parser.parse(content=text)
-        bill = Parser.get_bill()
-        ids = dc.get_project_ids()
-        for id in ids:
-            audit_project(id, dc,  bill)
-        return {"ok": True, "message": "File uploaded and printed successfully."}
-    except Exception as e:
-        return {"ok": False, "message": f"Failed to process file: {str(e)}"}
+    contents = await file.read()
+    text = contents.decode("utf-8")
+    parser.parse(content=text)
+    bill = Parser.get_bill()
+    ids = dc.get_project_ids()
+    for id in ids:
+        audit_project(id, dc,  bill)
+    return {"ok": True, "message": "File uploaded and printed successfully."}
+    # except Exception as e:
+    #     return {"ok": False, "message": f"Failed to process file: {str(e)}"}
 
 # ---------- Chatbox / Conversation API ----------
 class ChatboxCreateIn(BaseModel):

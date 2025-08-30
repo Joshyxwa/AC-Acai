@@ -63,6 +63,7 @@ class Parser():
         if len(articles_block) > 1:
             self._parse_articles(articles_block)
 
+        print(self.articles)
         self.save_to_db()
 
     def _parse_articles(self, split_articles: List[str]):
