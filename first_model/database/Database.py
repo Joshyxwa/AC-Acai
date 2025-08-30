@@ -468,7 +468,7 @@ class Database():
         )
         return response.data[0] if response.data else None
 
-    def get_project_ids():
+    def get_project_ids(self):
         response = self.supabase.table("Project").select("project_id").execute()
 
         if response.data:

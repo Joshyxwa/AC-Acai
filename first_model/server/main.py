@@ -5,7 +5,7 @@ from first_model.model.Auditor import Auditor
 import json
 # database = Database()
 lawyer = Law()
-attacker = Attacker()
+attacker = Attacker() 
 auditor = Auditor()
 
 def audit_project(project_id: int, database, bill="All"):
