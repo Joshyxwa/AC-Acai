@@ -9,7 +9,7 @@ from typing import List, Literal
 from dotenv import load_dotenv
 import html
 import re
-load_dotenv(dotenv_path="../../../secrets/.env.dev")
+load_dotenv(dotenv_path="../../secrets/.env.dev")
 
 PAREN_RE = re.compile(r"\(Attack vector:\s*.+\s*\)$")
 PLACEHOLDER_PAREN = "(Attack vector: unspecified)"
@@ -95,7 +95,7 @@ class Attacker(Model):
         <<<END PRD_SPANS>>>
 
         PRD:
-        <<<PRD>>>
+        <<<PRD>>>json.dumps(relevant_articles, indent=2)
         {prd_text}
         <<<END PRD>>>
 
@@ -107,7 +107,7 @@ class Attacker(Model):
         Return an object with field "scenarios": AttackScenario[]
         """
         message = self.client.messages.create(
-            model="claude-opus-4-1-20250805",
+            model="claude-opus-4-1-20250805",json.dumps(relevant_articles, indent=2)
             max_tokens=1024,
             messages=[
                 {"role": "user", "content": final_prompt}
