@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+env/lib/
 lib64/
 parts/
 sdist/
@@ -216,8 +216,3 @@ __marimo__/
 .streamlit/secrets.toml
 
 secrets
-
-# node
-node_modules
-build
-npm-debug.log
