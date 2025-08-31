@@ -27,7 +27,6 @@ class Chat():
         and calling the LLM for a final judgment.
         """
         # 1. Fetch all necessary data from the database using the correct sequence
-        print(f"--- Fetching data for Issue ID: {issue_id} ---")
         
         # Step 1.1: Get the issue details
         issue = self.__retrieve_issue(issue_id)
@@ -55,10 +54,8 @@ class Chat():
         )
         
         # 3. Call the LLM for adjudication
-        print("\n--- Adjudicating with LLM ---")
         adjudication_response = self.__llm_audit(prompt)
 
-        print("\n--- Updating database with adjudication results ---")
         
         # Step 4.1: Upload the agent's response to the conversation thread
         agent_message = adjudication_response.get("agent_response_message")
@@ -124,7 +121,6 @@ class Chat():
             # Handle unexpected types if necessary
             raise TypeError(f"Evidence input must be a JSON string or a dictionary, not {type(evidence_input)}")
         # --- END OF MODIFICATION ---
-        print(evidence_map)
         processed_evidence = {}
         for doc_id_str, span_ids in evidence_map.items():
             doc_id = int(doc_id_str)
@@ -195,6 +191,7 @@ class Chat():
         print(f"Agent message uploaded to conversation ID {conv_id}.")
         
 # # Example usage for the new Adjudicator orchestrator
+"""
 if __name__ == "__main__":
     
     print("--- Initializing Adjudicator Test Case ---")
@@ -213,3 +210,4 @@ if __name__ == "__main__":
         print(f"\n\n--- ❌ AN ERROR OCCURRED ---")
         print(f"Error Type: {type(e).__name__}")
         print(f"Error Details: {e}")
+"""

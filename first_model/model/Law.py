@@ -71,13 +71,11 @@ class Law():
         response = None
         for attempt in range(5):
             try:
-                print(f"Attempting to generate content (Attempt {attempt + 1}/5)...")
                 response = self.llm_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt
             )
                 # If the call is successful, print a confirmation and exit the loop
-                print("✅ Success! Content generated.")
                 break
             
             # Catch the specific error for "service unavailable" or "resource exhausted".
@@ -179,8 +177,6 @@ class Law():
                     model="gemini-2.5-flash",
                     contents=prompt
                 )
-                # If the call is successful, print a confirmation and exit the loop
-                print("✅ Success! Content generated.")
                 break
             
             # Catch the specific error for service overload; fall back to a broad catch if types unavailable
@@ -192,7 +188,6 @@ class Law():
                 else:
                     # Wait for a moment before the next attempt
                     wait_time = 2 ** attempt  # This is exponential backoff
-                    print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
                     time.sleep(wait_time)
         return response.text
 

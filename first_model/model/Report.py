@@ -24,7 +24,6 @@ class Report():
 
     def generate(self, audit_id: int) -> str:
         """Orchestrates the generation of the final, executive-ready audit report."""
-        print(f"--- [ReportAgent] Starting final report generation for Audit ID: {audit_id} ---")
         
         # 1. Fetch foundational data
         audit_details = self.__retrieve_audit(audit_id)
@@ -67,7 +66,6 @@ class Report():
         
         # 4. Format the prompt and call the LLM to generate the report
         prompt = self.__format_report_agent_prompt(final_dossier)
-        print("\n--- [ReportAgent] Generating final report with LLM ---")
         report_markdown = self.__llm_generate_text(prompt)
         
         return report_markdown
