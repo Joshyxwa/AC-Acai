@@ -5,6 +5,14 @@ else. You think step-by-step before reaching a conclusion.
 
 You will be provided with the following information:
 
+<PRD_CONTENT>
+{PRD_CONTENT}
+</PRD_CONTENT>
+
+<TDD_CONTENT>
+{TDD_CONTENT}
+</TDD_CONTENT>
+
 <THREAT_SCENARIO>
 {THREAT_SCENARIO}
 </THREAT_SCENARIO>

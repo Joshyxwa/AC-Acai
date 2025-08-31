@@ -125,17 +125,17 @@ class Law():
         else:
             raise ValueError(f"Document with ID {doc_id} not found.")
 
-    def audit(self, bill:str, doc_ids: List[int], top_k: int = 3):
+    def audit(self, bill:str, docs: List[str], top_k: int = 3):
         """
         Audits multiple documents together by first synthesizing their content
         and then running the HyDE pipeline on the unified context.
         """
 
         # 1. Fetch the content of all documents
-        document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
+        # document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
         
         # 2. Synthesize the contents into a single description (NEW STEP)
-        synthesized_context = self.__synthesize_documents(document_contents)
+        synthesized_context = self.__synthesize_documents(docs)
         
         # 3. Create the initial query from the synthesized context
         initial_query = (

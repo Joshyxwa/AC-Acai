@@ -1,6 +1,7 @@
 import os
 import json
 import torch
+import time
 from typing import List, Optional
 from anthropic import Anthropic
 from supabase import create_client, Client
@@ -27,10 +28,10 @@ class Auditor():
         self.docs = vx.get_or_create_collection(name="Article_Entry", dimension=768)
         self.supabase: Client = create_client(url, key)
 
-    def audit(self, ent_ids: List[int], doc_ids: List[int], threat_scenario) -> str:
+    def audit(self, feature_description, ent_ids: List[int], threat_scenario) -> str:
         """Main method to audit a threat scenario against specified legal articles."""
         article_contents = [self.__fetch_article_entry_content(ent_id) for ent_id in ent_ids]
-        prompt = self.format_prompt( article_contents, doc_ids, threat_scenario)
+        prompt = self.format_prompt( article_contents,threat_scenario)
         print("\n--- Auditing with LLM ---")
         response = self.__llm_audit(prompt)
         return response
@@ -44,21 +45,19 @@ class Auditor():
             raise ValueError(f"Article with ID {ent_id} not found.")
         
     
-    def format_prompt(self, article_contents: List[str], doc_ids: List[int], threat_scenario) -> str:
+    def format_prompt(self, article_contents: List[str], threat_scenario) -> str:
         """Formats the prompt for the LLM using the threat scenario and article contents."""
         with open("first_model/model/prompt_template/auditor_prompt.txt", "r") as file:
             prompt_template = file.read()
             file.close()
 
-        prd_dict, tdd_dict = self.__fetch_document_content(doc_ids)
-        prd_content, tdd_content = prd_dict["content_span"], tdd_dict["content_span"]
+        # prd_dict, tdd_dict = self.__fetch_document_content(doc_ids)
+        # prd_content, tdd_content = prd_dict["content_span"], tdd_dict["content_span"]
         
         article_contents_str = ""
         for article in article_contents:
             article_contents_str+= f"Article ID: {article['ent_id']}\nContent: {article['content']}\n\n"
         final_prompt = prompt_template.format(
-            PRD_CONTENT=prd_content,
-            TDD_CONTENT=tdd_content,
             THREAT_SCENARIO=threat_scenario,
             POTENTIAL_LAW_BROKEN=article_contents_str
         )
@@ -78,17 +77,29 @@ class Auditor():
             raise ValueError("Expected one PRD and one TDD document in doc_ids")
         return prd_dict, tdd_dict
     
-    def __llm_audit(self, prompt: str) -> str:
-        response = self.llm_client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        print("--- Audit Complete ---")
-        response_object = json.loads(response.content[0].text)
-        return response_object
+    def __llm_audit(self, prompt: str):
+        last_err = None
+        for attempt in range(5):
+            try:
+                response = self.llm_client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=4000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                # basic sanity checks
+                if not response.content or not getattr(response.content[0], "text", "").strip():
+                    raise RuntimeError("Empty response from LLM.")
+
+                response_object = json.loads(response.content[0].text)
+                print("--- Audit Complete ---")
+                return response_object
+
+            except Exception as e:
+                last_err = e
+                # simple exponential backoff: 1, 2, 4, 8, 16s
+                sleep_s = 2 ** attempt
+                print(f"⚠️ LLM audit attempt {attempt+1}/5 failed: {e}. Retrying in {sleep_s}s...")
+                time.sleep(sleep_s)
     
 # if __name__ == "__main__":
 

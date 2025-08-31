@@ -28,11 +28,20 @@ Output shape (ONLY this JSON object, no comments):
     "scenarios":[ ... exactly {max_n} items ... ]
 }}
 
+PRD (span-wrapped; 0-based indices are the N in <spanN>...):
+<<<PRD_SPANS>>>
+{prd_span}
+<<<END PRD_SPANS>>>
 
-FEATURE_DESCRIPTION (raw text for readability):
-<<<FD>>>
-{feature_description}
-<<<END FD>>>
+PRD (raw text for readability):
+<<<PRD>>>
+{prd_text}
+<<<END PRD>>>
+
+TDD (raw text):
+<<<TDD>>>
+{tdd_text}
+<<<END TDD>>>
 
 Legal/Definition Context (each item has ent_id for citation):
 {relevant_law}

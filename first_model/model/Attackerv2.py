@@ -313,7 +313,8 @@ class Attacker:
         ent_ids: List[int],
         *,
         max_n: int = 3,
-        prd_doc_id: int,
+        feature_description: str = "",
+        prd_doc_id: Optional[int] = None,
         tdd_doc_id: Optional[int] = None,   # ← change type + default
     ) -> dict:
         """
@@ -321,60 +322,61 @@ class Attacker:
         pass everything to Claude, then validate strict JSON → AuditBundle.
         Returns dict (AuditBundle.model_dump()).
         """
-        # 1) Fetch PRD (with spans)
-        doc_rows = (
-            self.supabase.table("Document")
-            .select("content, content_span")
-            .eq("doc_id", prd_doc_id)
-            .limit(1)
-            .execute()
-            .data
-        )
-        prd_text = (doc_rows[0].get("content") if doc_rows else "") or ""
-        prd_span = (doc_rows[0].get("content_span") if doc_rows else "") or ""
+        # # 1) Fetch PRD (with spans)
+        # doc_rows = (
+        #     self.supabase.table("Document")
+        #     .select("content, content_span")
+        #     .eq("doc_id", prd_doc_id)
+        #     .limit(1)
+        #     .execute()
+        #     .data
+        # )
+        # prd_text = (doc_rows[0].get("content") if doc_rows else "") or ""
+        # prd_span = (doc_rows[0].get("content_span") if doc_rows else "") or ""
 
-        # 2) Fetch TDD (optional)
-        tdd_text = ""
-        if tdd_doc_id is not None:
-            tdd_rows = (
-                self.supabase.table("Document")
-                .select("content")
-                .eq("doc_id", tdd_doc_id)
-                .limit(1)
-                .execute()
-                .data
-            )
-            tdd_text = (tdd_rows[0].get("content") if tdd_rows else "") or ""
+        # # 2) Fetch TDD (optional)
+        # tdd_text = ""
+        # if tdd_doc_id is not None:
+        #     tdd_rows = (
+        #         self.supabase.table("Document")
+        #         .select("content")
+        #         .eq("doc_id", tdd_doc_id)
+        #         .limit(1)
+        #         .execute()
+        #         .data
+        #     )
+        #     tdd_text = (tdd_rows[0].get("content") if tdd_rows else "") or ""
 
         # 3) Legal context (ent_ids → compact law bullets)
         relevant_law = self.get_law_context(ent_ids)
 
         # 4) Retrieve external case-study context (Hybrid RAG)
         # Use a short combined snippet (PRD+TDD) to guide retrieval, but keep it small.
-        prd_snippet = prd_text.strip()[:600]
-        tdd_snippet = tdd_text.strip()[:400]
-        query_snippet = (prd_snippet + ("\n" + tdd_snippet if tdd_snippet else "")).strip()
-        rag_docs = self._hybrid_retrieve_context(query_snippet or prd_snippet, final_top=10)
+        # prd_snippet = prd_text.strip()[:600]
+        # tdd_snippet = tdd_text.strip()[:400]
+        # query_snippet = (prd_snippet + ("\n" + tdd_snippet if tdd_snippet else "")).strip()
+        rag_docs = self._hybrid_retrieve_context(feature_description, final_top=10)
         rag_context = self._format_rag_context(rag_docs)
 
         # 5) Build the prompt (template must include {rag_context} and {tdd_text}; if not, we append)
         template = self.load_prompt_template()
         final_prompt = template.format(
             max_n=max_n,
-            prd_span=prd_span,
-            prd_text=prd_text,
-            tdd_text=tdd_text,          # ← TDD injected
+            feature_description=feature_description,
+            # prd_span=prd_span,
+            # prd_text=prd_text,
+            # tdd_text=tdd_text,          # ← TDD injected
             relevant_law=relevant_law,
             rag_context=rag_context,    # ← RAG injected
         )
 
-        # Fallback: if template didn’t have {rag_context} or {tdd_text}, append them
-        if "{rag_context}" not in template or "{tdd_text}" not in template:
-            final_prompt += "\n\n"
-            if "{tdd_text}" not in template:
-                final_prompt += f"Additional Technical Design Details (TDD):\n{(tdd_text or 'N/A')}\n\n"
-            if "{rag_context}" not in template:
-                final_prompt += f"Additional Retrieved Case Studies (top-10, hybrid fused + reranked):\n{rag_context}\n"
+        # # Fallback: if template didn’t have {rag_context} or {tdd_text}, append them
+        # if "{rag_context}" not in template or "{tdd_text}" not in template:
+        #     final_prompt += "\n\n"
+        #     if "{tdd_text}" not in template:
+        #         final_prompt += f"Additional Technical Design Details (TDD):\n{(tdd_text or 'N/A')}\n\n"
+        #     if "{rag_context}" not in template:
+        #         final_prompt += f"Additional Retrieved Case Studies (top-10, hybrid fused + reranked):\n{rag_context}\n"
 
         # 6) Call Claude
         resp = self.llm_client.messages.create(
