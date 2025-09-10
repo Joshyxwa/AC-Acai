@@ -1,0 +1,29 @@
+```json
+{
+  "minor_protection_and_parental_controls": {
+    "age_verification_mechanism": "Not Mentioned",
+    "parental_consent_flow": "Not Mentioned",
+    "account_restrictions_under_14": "Not Mentioned",
+    "parental_account_access": "Not Mentioned",
+    "default_time_restrictions": "Not Mentioned",
+    "default_privacy_settings": "Not Mentioned",
+    "parental_usage_limits": "Not Mentioned"
+  },
+  "algorithmic_systems_and_design": {
+    "is_addictive_feed_present": "No, the feature provides a 'Discover Talent' tab for mentors to find aspiring creators, which is not described as an addictive content feed for users/minors.",
+    "algorithmic_risk_assessment": "Not Mentioned, beyond general safety metrics and retroactive abuse analysis by Trust & Safety. There is no mention of a specific risk assessment performed on the underlying algorithms (e.g., for mentor eligibility or talent discovery).",
+    "targeted_content_for_minors": "No, the system facilitates mentors discovering promising new creators (who may be minors); it does not describe showing targeted content or suggested accounts *to* minors for their consumption.",
+    "metrics_display": "Not Mentioned"
+  },
+  "transparency_and_reporting": {
+    "ad_transparency_details": "Not Mentioned, as monetization and advertising are explicitly out of scope for V1.",
+    "content_moderation_reporting": "A standard in-chat 'Report' button is available for users, routing reports to a general moderation queue. All messages are subject to existing profanity and hate-speech filters, and connection events/message metadata are logged for retroactive analysis. However, there is no mention of issuing a 'Statement of Reasons' for content removal or publishing such statements as per EU DSA requirements.",
+    "csam_detection_and_reporting": "Messages are routed through a standard direct-messaging-service pipeline subject to existing profanity and hate-speech filters. All connection events and message metadata are logged to the Compliance Detection System (CDS) for retroactive analysis by the Trust & Safety team to identify patterns of abuse. This process could lead to 'actual knowledge' of prohibited content. However, a specific, explicit mechanism for reporting apparent CSAM to NCMEC is not detailed.",
+    "evidence_preservation": "Not Mentioned, beyond general logging of interactions and metadata to the CDS for analysis."
+  },
+  "data_and_notifications": {
+    "minor_data_collection": "For mentorship connections, `mentee_id`, `connection_id`, `status`, `created_at`, and message metadata are collected. User profile data like follower counts and account age (relevant for mentor eligibility) are also utilized by the service. All state changes and interactions are logged to the CDS. However, there is no specific mention of what data is collected *only from minors* or if it's limited to what's legally required.",
+    "notification_restrictions": "Not Mentioned. Aspiring creators will receive requests in a dedicated inbox, but there are no stated restrictions on when these notifications can be sent to minors."
+  }
+}
+```

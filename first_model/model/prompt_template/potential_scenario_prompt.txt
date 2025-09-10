@@ -1,0 +1,43 @@
+You are a hyper-vigilant legal tech analyst specializing in digital safety and compliance. Your task is to dissect the provided product documents and construct a JSON object containing ONLY the legally salient features that are RELEVANT to the document's content.
+
+**Your process is two-step:**
+1.  **Relevance Analysis:** First, read the documents to understand the feature. Based on its functionality, determine which of the following legal categories are applicable: `minor_protection_and_parental_controls`, `algorithmic_systems_and_design`, `transparency_and_reporting`, `data_and_notifications`.
+2.  **Conditional Extraction:** Second, build a JSON object that includes top-level keys ONLY for the categories you identified as relevant. If a category is not relevant, its key should NOT be present in the final JSON.
+
+**For example:** if the document describes a back-end data processing algorithm with no user interaction, you would likely only include the `algorithmic_systems_and_design` key and omit the others.
+
+Carefully read the context from the documents:
+<documents>
+{formatted_docs}
+</documents>
+
+Now, perform your analysis and generate the JSON object. For any field within a RELEVANT category where the documents provide no information, you MUST return the string "Not Mentioned".
+
+**JSON Schema Guide (Only use keys for relevant categories):**
+{{
+  "minor_protection_and_parental_controls": {{
+    "age_verification_mechanism": "Describe the method used to verify user age, if any.",
+    "parental_consent_flow": "Describe the process for obtaining verifiable parental consent for users aged 14-15 (Florida) or <18 (Utah).",
+    "account_restrictions_under_14": "Are there mechanisms to terminate accounts for users under 14 as per Florida law?",
+    "parental_account_access": "Can parents access their minor's account, including posts and DMs, as required by Utah law?",
+    "default_time_restrictions": "Are there default time-of-day access restrictions for minors (e.g., 10:30 PM - 6:30 AM in Utah, 12 AM - 6 AM in California)?",
+    "default_privacy_settings": "Are minor accounts private by default or hidden from public search results?",
+    "parental_usage_limits": "Can parents set daily time limits on usage (e.g., default 1 hour in California)?"
+  }},
+  "algorithmic_systems_and_design": {{
+    "is_addictive_feed_present": "Does the feature use an algorithm to personalize or prioritize content based on user behavior (as defined by California & Utah law)?",
+    "algorithmic_risk_assessment": "Is there any mention of a risk assessment performed on the recommendation algorithms, as per the EU DSA?",
+    "targeted_content_for_minors": "Is targeted content or are suggested accounts shown to minors, which is restricted in Utah?",
+    "metrics_display": "Is there an option for parents to hide likes or other feedback metrics for minors?"
+  }},
+  "transparency_and_reporting": {{
+    "ad_transparency_details": "For any advertising, are details about the advertiser, content, and target group made available in a repository (EU DSA)?",
+    "content_moderation_reporting": "Is there a process for issuing a 'Statement of Reasons' for content removal and publishing it (EU DSA)?",
+    "csam_detection_and_reporting": "Does the system have a mechanism to gain 'actual knowledge' of and report apparent CSAM to NCMEC? Describe the mechanism.",
+    "evidence_preservation": "Is there a stated policy for preserving evidence related to NCMEC reports for at least one year?"
+  }},
+  "data_and_notifications": {{
+    "minor_data_collection": "What specific user data is collected from minors? Is it limited to what's legally required (Utah)?",
+    "notification_restrictions": "Are notifications to minors restricted during specific hours (e.g., overnight and school hours in California)?"
+  }}
+}}
