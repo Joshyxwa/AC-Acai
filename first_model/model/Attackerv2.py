@@ -71,9 +71,9 @@ class Attacker:
     _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$")
 
     # ★ NEW: constants for embeddings and RAG
-    _EMBED_MODEL_ID = os.environ.get("EMBED_MODEL_ID", "Qwen/Qwen3-Embedding-8B")   # override via ENV if needed
-    _TARGET_DIM = 4000                                                                 # halfvec(4000) in Supabase
-    _DEVICE = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+    _EMBED_MODEL_ID = "Qwen/Qwen3-Embedding-8B"   # produces ≥4096 dims; we slice to 4000
+    _TARGET_DIM = 4000                            # halfvec(4000) in Supabase
+    _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     def __init__(self):
         print(">>> Using Attackerv2 implementation")  # Trace message
@@ -99,14 +99,12 @@ class Attacker:
 
         # ★ NEW: load embedder once
         self._tok = AutoTokenizer.from_pretrained(self._EMBED_MODEL_ID, padding_side="left")
-        torch_dtype = torch.float16 if self._DEVICE in ("cuda", "mps") else torch.float32
         self._mdl = AutoModel.from_pretrained(
             self._EMBED_MODEL_ID,
-            torch_dtype=torch_dtype,
+            dtype=torch.bfloat16 if self._DEVICE == "cuda" else torch.float32,
+            device_map="auto",
             low_cpu_mem_usage=True,
-            trust_remote_code=True
         )
-        self._mdl.to(self._DEVICE)
         self._mdl.eval()
 
     @staticmethod
@@ -224,13 +222,7 @@ class Attacker:
             out = self._mdl(**toks)
             pooled = self._last_token_pool(out.last_hidden_state, toks["attention_mask"])
             pooled = F.normalize(pooled, p=2, dim=1)
-            d = pooled.size(1)
-            if d >= self._TARGET_DIM:
-                pooled = pooled[:, :self._TARGET_DIM]
-            else:
-                pad = torch.zeros((pooled.size(0), self._TARGET_DIM - d), device=pooled.device, dtype=pooled.dtype)
-                pooled = torch.cat([pooled, pad], dim=1)
-            pooled = pooled.to(torch.float32)  # halfvec(4000)
+            pooled = pooled[:, :self._TARGET_DIM].to(torch.float32)  # halfvec(4000)
             vecs.append(pooled.cpu().numpy())
         return np.vstack(vecs)
 
