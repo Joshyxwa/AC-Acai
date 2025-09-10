@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, AlertTriangle, User, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Send, AlertTriangle, User, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { getHighlightResponse } from "@/lib/api";
 
 interface Comment {
@@ -20,6 +22,9 @@ interface Highlight {
   clarification_qn?: string;
   text?: string;
   comments: Comment[];
+  status: "document" | "open";
+  region?: string;
+  law?: string;
 }
 
 interface SideCommentsProps {
@@ -40,9 +45,14 @@ export const SideComments = ({ highlights, activeComment, selectedComment, onCom
   const [replyingToComment, setReplyingToComment] = useState<string | null>(null);
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
   const [isLoadingResponse, setIsLoadingResponse] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<"document" | "open">("open");
+  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
   const commentRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const documentScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Filter highlights by active tab
+  const filteredHighlights = highlights.filter(highlight => highlight.status === activeTab);
 
   // Initialize document scroll reference
   useEffect(() => {
@@ -152,8 +162,13 @@ export const SideComments = ({ highlights, activeComment, selectedComment, onCom
     <div className="w-80 border-l bg-card relative h-full overflow-hidden flex flex-col">
       {/* Header */}
       <div className="bg-card border-b p-4 flex-shrink-0">
-        <h3 className="font-medium text-foreground">Comments</h3>
-        <p className="text-sm text-muted-foreground">Click highlights to view</p>
+        <h3 className="font-medium text-foreground mb-2">Comments</h3>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "document" | "open")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="document" className="text-xs">Document</TabsTrigger>
+            <TabsTrigger value="open" className="text-xs">Open</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Comments Container */}
@@ -162,7 +177,7 @@ export const SideComments = ({ highlights, activeComment, selectedComment, onCom
         className="comments-container relative flex-1 p-4 overflow-y-auto"
         style={{ minHeight: 0, maxHeight: '100%' }}
       >
-        {highlights.map((highlight) => (
+        {filteredHighlights.map((highlight) => (
           <div
             key={highlight.id}
             id={`comment-${highlight.id}`}
@@ -194,20 +209,53 @@ export const SideComments = ({ highlights, activeComment, selectedComment, onCom
               <div className={`p-3 border-b ${
                 selectedComment === highlight.id ? 'bg-blue-50' : 'bg-yellow-50'
               }`}>
-                {highlight.reason && (
+                {highlight.region && (
                   <div className="mb-2">
-                    <p className="text-xs text-muted-foreground font-medium mb-1">Reason:</p>
-                    <p className="text-xs text-foreground">{highlight.reason}</p>
+                    <p className="text-xs text-muted-foreground font-bold mb-1">Region:</p>
+                    <p className="text-xs text-foreground font-medium">{highlight.region}</p>
                   </div>
                 )}
-                {highlight.clarification_qn && (
+                {highlight.law && (
                   <div className="mb-2">
-                    <p className="text-xs text-muted-foreground font-medium mb-1">Clarification Question:</p>
-                    <p className="text-xs text-foreground italic">{highlight.clarification_qn}</p>
+                    <p className="text-xs text-muted-foreground font-bold mb-1">Law:</p>
+                    <p className="text-xs text-foreground font-medium">{highlight.law}</p>
                   </div>
+                )}
+                {highlight.reason && (
+                  <Collapsible 
+                    open={expandedReasons[highlight.id]} 
+                    onOpenChange={(open) => setExpandedReasons(prev => ({...prev, [highlight.id]: open}))}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-auto p-0 text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
+                        {expandedReasons[highlight.id] ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                        Show Details
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2">
+                      <div className="mb-2">
+                        <p className="text-xs text-muted-foreground font-medium mb-1">Reason:</p>
+                        <p className="text-xs text-foreground">{highlight.reason}</p>
+                      </div>
+                      {/* {highlight.clarification_qn && (
+                        <div className="mb-2">
+                          <p className="text-xs text-muted-foreground font-medium mb-1">Clarification Question:</p>
+                          <p className="text-xs text-foreground italic">{highlight.clarification_qn}</p>
+                        </div>
+                      )} */}
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
                 {highlight.text && (
-                  <div>
+                  <div className="mt-2">
                     <p className="text-xs text-muted-foreground font-medium mb-1">Referenced text:</p>
                     <p className="text-xs text-foreground italic line-clamp-2">
                       "{highlight.text}"

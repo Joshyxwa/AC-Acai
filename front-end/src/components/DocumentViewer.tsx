@@ -23,6 +23,9 @@ interface Highlight {
   clarification_qn?: string;
   text?: string;
   comments: Comment[];
+  status: "document" | "open";
+  region?: string;
+  law?: string;
 }
 
 interface DocumentData {
@@ -89,6 +92,9 @@ JSON
         ],
         reason: "The service validates mentor eligibility against the Spanner rule engine",
         clarification_qn: "The PRD mentions 'robust safeguards to prevent bad actors from exploiting this feature to contact minors inappropriately' but doesn't specify how the system will detect and prevent malicious actors from creating multiple fake verified accounts or engaging in systematic targeting of young creators. What specific technical controls are planned to address coordinated predatory behavior across multiple mentor accounts?",
+        status: "document" as const,
+        region: "California, USA",
+        law: "CCPA - California Consumer Privacy Act",
         comments: [
           {
             id: "comment-1",
@@ -106,6 +112,9 @@ JSON
         ],
         reason: "Privacy concerns with user profile data access",
         clarification_qn: "What specific consent mechanisms will be implemented to comply with GDPR and CCPA requirements when accessing user profile data for mentorship eligibility?",
+        status: "open" as const,
+        region: "European Union",
+        law: "GDPR - General Data Protection Regulation",
         comments: [
           {
             id: "comment-2",
@@ -130,6 +139,9 @@ JSON
         ],
         reason: "Security audit requirement for data access patterns",
         clarification_qn: "How will the system log and audit access to sensitive user profile data to comply with SOX and security audit requirements?",
+        status: "document" as const,
+        region: "United States",
+        law: "SOX - Sarbanes-Oxley Act",
         comments: [
           {
             id: "comment-4",
