@@ -214,6 +214,9 @@ class Highlight(BaseModel):
     highlighting: List[HighlightSpans]
     reason: str
     clarification_qn: str
+    law: str
+    status: str
+    region: str
     comments: Optional[List[Comment]]
 
 class DocumentPayload(BaseModel):

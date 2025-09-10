@@ -283,9 +283,21 @@ class Database():
                                 "timestamp": message["created_at"]
                             })
 
+                    article = (
+                        self.supabase
+                        .table("Article_Entry")
+                        .select("*")
+                        .eq("ent_id", issue["ent_id"])
+                        .single()
+                        .execute()
+                    ).data
+
                     highlight = {
                         "id": issue["issue_id"],
                         "highlighting": highlighting,
+                        "law": f"{article['art_num'] if article else 'Unknown Article'} - {article['belongs_to'] if article else 'Unknown Law'}",
+                        "status": issue["status"],
+                        "region": (article or {}).get("Country") or "Unknown Region",
                         "reason": issue["issue_description"],
                         "clarification_qn": issue["clarification_qn"],
                         "comments": final_messages
