@@ -44,12 +44,12 @@ class Chat():
             conversation = self.__retrieve_conversation(conv_id)
         
         # Step 1.4: Fetch the related law and evidence
-        law_entry = self.__fetch_article_entry_content(issue['ent_id'])
+        law_entry_list = self.__fetch_article_entry_content(issue['ent_id_list'])
         evidence_quotes = self.__preprocess_evidence_spans(issue['evidence'])
 
         # 2. Format the comprehensive prompt
         prompt = self.__format_adjudicator_prompt(
-            law_content=law_entry['content'],
+            law_content=law_entry_list,
             evidence_quotes=evidence_quotes,
             conversation_history=conversation
         )
@@ -67,9 +67,9 @@ class Chat():
         
         # Step 4.2: Conditionally update the issue status if it's resolved
         new_status = adjudication_response.get("new_status")
-        if new_status and new_status.lower() == 'resolved':
+        if new_status and new_status.lower() == 'document':
             # Use lowercase 'resolved' as is common for database enums
-            self.__edit_issue_status(issue_id, "resolved")
+            self.__edit_issue_status(issue_id, "document")
             
         return agent_message
 
@@ -97,13 +97,16 @@ class Chat():
         else:
             return [] # Return empty list if no messages yet
     
-    def __fetch_article_entry_content(self, ent_id: int) -> Dict:
+    def __fetch_article_entry_content(self, ent_id_list: int) -> Dict:
         """Fetches the content of a single legal article."""
-        response = self.supabase.table("Article_Entry").select("contents").eq("ent_id", ent_id).single().execute()
-        if response.data:
-            return {"ent_id": ent_id, "content": response.data["contents"]}
-        else:
-            raise ValueError(f"Article with ID {ent_id} not found.")
+        ent_list = []
+        for ent_id in ent_id_list:
+            response = self.supabase.table("Article_Entry").select("contents").eq("ent_id", ent_id).single().execute()
+            if response.data:
+                ent_list.append({"ent_id": ent_id, "content": response.data["contents"]})
+            else:
+                raise ValueError(f"Article with ID {ent_id} not found.")
+        return ent_list
 
     def __preprocess_evidence_spans(self, evidence_input: Union[str, Dict]) -> Dict[int, List[str]]:
         """
@@ -200,7 +203,7 @@ if __name__ == "__main__":
     print("--- Initializing Adjudicator Test Case ---")
     chat_agent = Chat()
 
-    issue_id_to_test = 30
+    issue_id_to_test = 100
 
     try:
         print(f"\n--- Starting adjudication run for Issue ID: {issue_id_to_test} ---")

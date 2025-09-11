@@ -401,8 +401,8 @@ class Attacker:
 
 # if __name__ == "__main__":
 #     print("--- Running Attack ---")
-#     ent_ids = [6, 66, 9, 58, 11, 58, 360, 59, 63, 91, 57, 65, 35, 69, 31, 50, 10]
+#     ent_ids = [6, 9, 11, 278, 31, 32, 35, 51, 57, 58, 59, 60, 62, 63, 191, 67, 69, 358, 360]
 #     attacker = Attacker()
-#     result = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=1, tdd_doc_id=2)
+#     result = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=7, tdd_doc_id=8)
 #     print(result)
 

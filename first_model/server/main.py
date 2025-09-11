@@ -15,13 +15,13 @@ def audit_project(project_id: int, database, bill="All"):
     audit_id = database.project_audit(project_id=project_id)
     for scenario in attack_scenarios["scenarios"]:
         law_used = scenario["law_citations"]
-        audit_response = auditor.audit(doc_ids=doc_ids, ent_ids=ent_ids, threat_scenario=scenario)
+        audit_response = auditor.audit(doc_ids=doc_ids, ent_ids=law_used, threat_scenario=scenario)
 
         evidence_dict = json.loads(audit_response[0]["evidence"])
         clean_evidence_dict = {f"{doc_ids[0]}": evidence_dict["prd"], f"{doc_ids[1]}": evidence_dict["tdd"]}
 
-        issue_id = database.create_issue(audit_id=audit_id, issue_description=audit_response[0]["reasoning"], ent_id=int(law_used[0]) if law_used else -1, status="open", evidence=clean_evidence_dict, qn=audit_response[0]["clarification_question"])
+        issue_id = database.create_issue(audit_id=audit_id, issue_description=audit_response[0]["reasoning"], ent_id_list=law_used if law_used else -1, status="open", evidence=clean_evidence_dict, qn=audit_response[0]["clarification_question"])
         conv_id = database.create_conversation(audit_id=audit_id, issue_id=issue_id)
         start_convo = database.send_first_message(conv_id=conv_id, role="ai", content=audit_response[0]["clarification_question"])
 # if __name__ == "__main__":
-#     audit_project(2)
+#     audit_project(5, database=database, bill="All")

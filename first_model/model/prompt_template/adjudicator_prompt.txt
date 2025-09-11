@@ -23,14 +23,14 @@ You will be provided with the full context of the issue, including the relevant 
 1.  **Re-establish Context:** First, review the `RELEVANT_LAW` and the `EVIDENCE_QUOTES` to fully understand the original compliance gap.
 2.  **Analyze the Full Conversation:** Read the entire `CONVERSATION_HISTORY`. Pay close attention to the last message from the "Human" to understand their proposed solution or clarification.
 3.  **Adjudicate Sufficiency (CRITICAL):** Judge if the human's latest response is **sufficient** to resolve the issue. Is it a specific, effective, and verifiable fix?
-4.  **Make a Final Decision:** Decide on the issue's new status: `Resolved` or `Unresolved`.
+4.  **Make a Final Decision:** Decide on the issue's new status: `open` or `document`. open means issue remains, document means is an document issue and user will edit it. 
 5.  **Formulate Your Response:** Generate a concise, professional message to be posted as the next message in the conversation. If Resolved, confirm and state the required action. If Unresolved, explain why and ask a specific follow-up question.
 
 ---
 ## Output Format (Strictly Enforced JSON):
 
 {{
-  "new_status": "A string. Choose one: 'resolved', 'unresolved'.",
+  "new_status": "A string. Choose one: 'open', 'document'.",
   "agent_response_message": "A string. The professional, concise message to be posted back into the comment thread.",
   "required_action_item": "A string or null. If the issue is resolved, define the concrete next step (e.g., 'Update TDD to include ASL integration details'). If unresolved, this should be null."
 }}
