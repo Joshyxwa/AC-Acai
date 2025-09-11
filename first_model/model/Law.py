@@ -355,29 +355,29 @@ class Law():
         print(f"Total similarity between different hyde documents: {similarity:.2f}%")
         
 
-# if __name__ == "__main__":
-#     print("--- Initializing Law ---")
-#     law = Law()
+if __name__ == "__main__":
+    print("--- Initializing Law ---")
+    law = Law()
 
-#     # --- Provide the list of document IDs to check TOGETHER ---
-#     # These documents will be read and analyzed as a single unit.
-#     combined_document_ids = [1, 2] 
+    # --- Provide the list of document IDs to check TOGETHER ---
+    # These documents will be read and analyzed as a single unit.
+    combined_document_ids = [7, 8] 
 
-#     try:
-#         # Call the new combined audit method
-#         # final_results = law.audit(doc_ids=combined_document_ids, bill="All")
-#         unique_document_ids = law.audit(doc_ids=combined_document_ids, bill="All")
+    try:
+        # Call the new combined audit method
+        # final_results = law.audit(doc_ids=combined_document_ids, bill="All")
+        unique_document_ids = law.audit(doc_ids=combined_document_ids, bill="All")
         
-#         print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
-#         print(unique_document_ids)
+        print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
+        print(unique_document_ids)
 
-#         # print("--- Evaluation document similarity ---")
-#         # law.eval_hyde(doc_ids=combined_document_ids, num=10)
-#         #print("--- Evaluating agent against synthatic data ---")
-#         #auditor.evaluate()
+        # print("--- Evaluation document similarity ---")
+        # law.eval_hyde(doc_ids=combined_document_ids, num=10)
+        #print("--- Evaluating agent against synthatic data ---")
+        #auditor.evaluate()
         
-#     except Exception as e:
-#         print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
-#         print(f"Error Type: {type(e).__name__}")
-#         print(f"Error Details: {e}")
+    except Exception as e:
+        print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Details: {e}")
 

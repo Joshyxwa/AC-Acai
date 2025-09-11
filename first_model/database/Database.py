@@ -439,11 +439,11 @@ class Database():
         print(response.data)
         return response.data[0]["audit_id"]
     
-    def create_issue(self, audit_id: int, issue_description: str, ent_id: int, status: str = "open", evidence: dict = None, qn: str = None):
+    def create_issue(self, audit_id: int, issue_description: str, ent_id_list: int, status: str = "open", evidence: dict = None, qn: str = None):
         response = self.supabase.table("Issue").insert({
             "audit_id": audit_id,
             "issue_description": issue_description,
-            "ent_id": ent_id,
+            "ent_id_list": ent_id_list,
             "status": status,
             "evidence": evidence,
             "clarification_qn": qn
