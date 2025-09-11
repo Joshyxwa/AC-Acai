@@ -6,15 +6,6 @@ import torch.nn.functional as F
 from typing import List, Dict, Set, Any
 from google import genai
 from google.genai import types
-try:
-    from google.api_core import exceptions as gcloud_exceptions
-except Exception:
-    class _Exc:
-        class ServiceUnavailable(Exception):
-            pass
-        class ResourceExhausted(Exception):
-            pass
-    gcloud_exceptions = _Exc()  # fallback so except clauses work even if package missing
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModel
@@ -100,7 +91,7 @@ class Law():
         """
         Performs vector search for a list of embeddings and returns a unique list of document IDs.
         """
-        unique_doc_ids: Set[Any] = set()
+        unique_doc_ids: Set[int] = set()
 
         for embed in embedding:
             # Determine the filter based on the 'bill' parameter
@@ -124,7 +115,7 @@ class Law():
             # Extract the ID from each result and add it to the set to ensure uniqueness
             for index in search_results:
                 # Assuming each result is a dict with an 'id' key
-                unique_doc_ids.add(index)
+                unique_doc_ids.add(int(index))
 
         # Return the unique IDs as a list
         return list(unique_doc_ids)
@@ -192,9 +183,9 @@ class Law():
                     print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
                     time.sleep(wait_time)
         queries_list = self.__parse_corrupted_json(response.text)
-        with open("demofile.txt", "w") as f:
-            f.write(f"{queries_list}") 
-        f.close()
+        # with open("demofile.txt", "w") as f:
+        #     f.write(f"{queries_list}") 
+        # f.close()
         return queries_list
 
     def __parse_corrupted_json(self, dirty_string: str) -> list:
@@ -364,29 +355,29 @@ class Law():
         print(f"Total similarity between different hyde documents: {similarity:.2f}%")
         
 
-if __name__ == "__main__":
-    print("--- Initializing Law ---")
-    law = Law()
+# if __name__ == "__main__":
+#     print("--- Initializing Law ---")
+#     law = Law()
 
-    # --- Provide the list of document IDs to check TOGETHER ---
-    # These documents will be read and analyzed as a single unit.
-    combined_document_ids = [1, 2] 
+#     # --- Provide the list of document IDs to check TOGETHER ---
+#     # These documents will be read and analyzed as a single unit.
+#     combined_document_ids = [1, 2] 
 
-    try:
-        # Call the new combined audit method
-        # final_results = law.audit(doc_ids=combined_document_ids, bill="All")
-        unique_document_ids = law.audit(doc_ids=combined_document_ids, bill="All")
+#     try:
+#         # Call the new combined audit method
+#         # final_results = law.audit(doc_ids=combined_document_ids, bill="All")
+#         unique_document_ids = law.audit(doc_ids=combined_document_ids, bill="All")
         
-        print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
-        print(unique_document_ids)
+#         print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
+#         print(unique_document_ids)
 
-        # print("--- Evaluation document similarity ---")
-        # law.eval_hyde(doc_ids=combined_document_ids, num=10)
-        #print("--- Evaluating agent against synthatic data ---")
-        #auditor.evaluate()
+#         # print("--- Evaluation document similarity ---")
+#         # law.eval_hyde(doc_ids=combined_document_ids, num=10)
+#         #print("--- Evaluating agent against synthatic data ---")
+#         #auditor.evaluate()
         
-    except Exception as e:
-        print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Details: {e}")
+#     except Exception as e:
+#         print(f"\n\n--- ❌ AN UNEXPECTED ERROR OCCURRED ---")
+#         print(f"Error Type: {type(e).__name__}")
+#         print(f"Error Details: {e}")
 
