@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field, field_validator, ValidationError
 from typing import List, Dict, Tuple, Optional
 from dotenv import load_dotenv
 from pathlib import Path
-
+from google import genai
+from google.genai import types
 # ★ NEW: embedding/rerank deps
 import numpy as np
 import torch
@@ -23,7 +24,7 @@ except Exception:
 
 
 # Load environment variables from a .env file
-load_dotenv(dotenv_path="../../secrets/.env.dev")
+load_dotenv(dotenv_path="./secrets/.env.dev")
 
 PAREN_RE = re.compile(r"\(Attack vector:\s*.+\s*\)$")
 PLACEHOLDER_PAREN = "(Attack vector: unspecified)"
@@ -71,9 +72,9 @@ class Attacker:
     _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$")
 
     # ★ NEW: constants for embeddings and RAG
-    _EMBED_MODEL_ID = "Qwen/Qwen3-Embedding-8B"   # produces ≥4096 dims; we slice to 4000
-    _TARGET_DIM = 4000                            # halfvec(4000) in Supabase
-    _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    # _EMBED_MODEL_ID = "Qwen/Qwen3-Embedding-8B"   # produces ≥4096 dims; we slice to 4000
+    # _TARGET_DIM = 4000                            # halfvec(4000) in Supabase
+    # _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
     def __init__(self):
         print(">>> Using Attackerv2 implementation")  # Trace message
@@ -83,7 +84,10 @@ class Attacker:
         if not anthropic_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
         self.llm_client = anthropic.Anthropic(api_key=anthropic_key)
-
+        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        self.genai_client = genai.Client(
+            api_key=gemini_api_key,
+        )
         # Supabase
         url: str = os.environ.get("SUPABASE_URL")
         key: str = os.environ.get("SUPABASE_KEY")
@@ -91,21 +95,21 @@ class Attacker:
             raise ValueError("Supabase URL or Key environment variables not set.")
         self.supabase: Client = create_client(url, key)
 
-        # ★ NEW: Cohere (optional) for reranking
-        self._co = None
-        if HAS_COHERE and os.environ.get("COHERE_API_KEY"):
-            print(">>> Cohere reranker enabled")
-            self._co = cohere.Client(os.environ["COHERE_API_KEY"])
+        # # ★ NEW: Cohere (optional) for reranking
+        # self._co = None
+        # if HAS_COHERE and os.environ.get("COHERE_API_KEY"):
+        #     print(">>> Cohere reranker enabled")
+        #     self._co = cohere.Client(os.environ["COHERE_API_KEY"])
 
-        # ★ NEW: load embedder once
-        self._tok = AutoTokenizer.from_pretrained(self._EMBED_MODEL_ID, padding_side="left")
-        self._mdl = AutoModel.from_pretrained(
-            self._EMBED_MODEL_ID,
-            dtype=torch.bfloat16 if self._DEVICE == "cuda" else torch.float32,
-            device_map="auto",
-            low_cpu_mem_usage=True,
-        )
-        self._mdl.eval()
+        # # ★ NEW: load embedder once
+        # self._tok = AutoTokenizer.from_pretrained(self._EMBED_MODEL_ID, padding_side="left")
+        # self._mdl = AutoModel.from_pretrained(
+        #     self._EMBED_MODEL_ID,
+        #     dtype=torch.bfloat16 if self._DEVICE == "cuda" else torch.float32,
+        #     device_map="auto",
+        #     low_cpu_mem_usage=True,
+        # )
+        # self._mdl.eval()
 
     @staticmethod
     def _strip_md_fences(s: str) -> str:
@@ -212,19 +216,19 @@ class Attacker:
         return last_hidden_states[torch.arange(bsz, device=last_hidden_states.device), seq_lens]
 
     @torch.no_grad()
-    def _embed_texts(self, texts: List[str], batch=8, max_length=1024) -> np.ndarray:
-        vecs = []
-        for i in range(0, len(texts), batch):
-            chunk = texts[i:i+batch]
-            toks = self._tok(chunk, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
-            dev = next(iter(self._mdl.state_dict().values())).device
-            toks = {k: v.to(dev) for k, v in toks.items()}
-            out = self._mdl(**toks)
-            pooled = self._last_token_pool(out.last_hidden_state, toks["attention_mask"])
-            pooled = F.normalize(pooled, p=2, dim=1)
-            pooled = pooled[:, :self._TARGET_DIM].to(torch.float32)  # halfvec(4000)
-            vecs.append(pooled.cpu().numpy())
-        return np.vstack(vecs)
+    def _embed_texts(self, text_list: List[str], embed_type="query") -> List[float]:
+        """Generates embeddings for a given text or list of texts."""
+        if embed_type == "query":
+            task_type = "RETRIEVAL_QUERY"
+        else:
+            task_type = "RETRIEVAL_DOCUMENT"
+        query_embeddings = self.genai_client.models.embed_content(
+            model="gemini-embedding-001", contents=text_list, config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=768) # RETRIEVAL_QUERY for query, RETRIEVAL_DOCUMENT for document
+        )
+        all_embeddings_comprehension = [
+            embedding_result.values for embedding_result in query_embeddings.embeddings
+        ]
+        return all_embeddings_comprehension
 
     def _hyde_expand(self, query: str, max_tokens=350) -> str:
         prompt = f"""
@@ -243,7 +247,7 @@ class Attacker:
 
     # RPC wrappers (SQL functions must already exist)
     def _dense_retrieve(self, vec: np.ndarray, k=50) -> List[Dict]:
-        params = {"qvec": vec.tolist(), "top_k": k, "law_filter": None, "company_filter": None}
+        params = {"qvec": vec, "top_k": k, "law_filter": None, "company_filter": None}
         return self.supabase.rpc("match_case_chunks_dense", params).execute().data or []
 
     def _fts_retrieve(self, q: str, k=50) -> List[Dict]:
@@ -293,8 +297,8 @@ class Attacker:
         fts = self._fts_retrieve(prd_snippet, k=60)
 
         fused = self._rrf([dense, dense_hyde, fts], k_rrf=60, top_n=60)
-        reranked = self._cohere_rerank(prd_snippet, fused, top_k=final_top)
-        return reranked
+        # reranked = self._cohere_rerank(prd_snippet, fused, top_k=final_top)
+        return fused
 
     @staticmethod
     def _format_rag_context(docs: List[Dict], sep: str = "\n---\n") -> str:
@@ -305,6 +309,10 @@ class Attacker:
             txt = d.get("text", "")
             parts.append(f"{head}\n{src}\n{txt}")
         return sep.join(parts) if parts else "NO_EXTRA_CONTEXT"
+    
+    def _retrieve_top3_laws(self, ):
+        
+        pass
     
     # ------------------- Attack Logic -------------------
 
@@ -391,19 +399,10 @@ class Attacker:
         bundle = self._validate_bundle_or_explain(data, max_n)
         return bundle.model_dump()
 
-
-
-
-
-
-
-
-
-
-if __name__ == "__main__":
-    print("--- Running Attack ---")
-    ent_ids = list(range(1, 11))
-    attacker = Attacker()
-    result = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=1, tdd_doc_id=2)
-    print(result)
+# if __name__ == "__main__":
+#     print("--- Running Attack ---")
+#     ent_ids = [6, 66, 9, 58, 11, 58, 360, 59, 63, 91, 57, 65, 35, 69, 31, 50, 10]
+#     attacker = Attacker()
+#     result = attacker.run_attack(ent_ids=ent_ids, max_n=3, prd_doc_id=1, tdd_doc_id=2)
+#     print(result)
 
