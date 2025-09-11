@@ -3,8 +3,9 @@ import re
 import json
 import torch
 import torch.nn.functional as F
-from typing import List, Union
+from typing import List, Dict, Set, Any
 from google import genai
+from google.genai import types
 try:
     from google.api_core import exceptions as gcloud_exceptions
 except Exception:
@@ -35,11 +36,6 @@ class Law():
             api_key=gemini_api_key,
         )
 
-        model_name = "nlpaueb/legal-bert-base-uncased"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.embedding_model = AutoModel.from_pretrained(model_name).to(self.device)
-
         # --- Database Client Setup (Simplified) ---
         url: str = os.environ.get("SUPABASE_URL")
         key: str = os.environ.get("SUPABASE_KEY")
@@ -52,24 +48,19 @@ class Law():
         self.supabase: Client = create_client(url, key)
         self.bill = bill
 
-    def _embed_text(self, text: Union[str, List[str]]) -> List[float]:
+    def _embed_text(self, text_list: List[str], embed_type="query") -> List[float]:
         """Generates embeddings for a given text or list of texts."""
-        inputs = self.tokenizer(text, padding=True, truncation=True, return_tensors='pt', max_length=512).to(self.device)
-        with torch.no_grad():
-            outputs = self.embedding_model(**inputs)
-            embeddings = outputs.last_hidden_state.mean(dim=1)
-        return embeddings.cpu().numpy().tolist()
-    
-    def __format_scenarios_prompt(self, law_string):
-        start_index = law_string.find('{')
-
-        # Find the index of the last '}'
-        end_index = law_string.rfind('}')
-
-        # Slice the string to get only the valid JSON part
-        clean_json_string = law_string[start_index : end_index + 1]
-        print(clean_json_string)
-        # --- END FIX ---
+        if embed_type == "query":
+            task_type = "RETRIEVAL_QUERY"
+        else:
+            task_type = "RETRIEVAL_DOCUMENT"
+        query_embeddings = self.llm_client.models.embed_content(
+            model="gemini-embedding-001", contents=text_list, config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=768) # RETRIEVAL_QUERY for query, RETRIEVAL_DOCUMENT for document
+        )
+        all_embeddings_comprehension = [
+            embedding_result.values for embedding_result in query_embeddings.embeddings
+        ]
+        return all_embeddings_comprehension
 
     def __generate_hypothetical_document(self, query: str) -> str:
         """Uses the LLM to generate a hypothetical document."""
@@ -105,28 +96,38 @@ class Law():
                     time.sleep(wait_time)
         return response.text if response else ""
 
-    def __vector_search(self, bill: str, embedding: List[float], top_k: int = 3) -> List[dict]:
-        """Performs vector search using a Supabase RPC function."""
-        if bill == "All":
-            # This part was already correct, as it only has one filter condition
-            index_list = self.docs.query(
-                data=embedding,
-                limit=top_k,
-                filters={"type": {"$eq": "Law"}},
-            )
-        else:
-            # Correctly combine multiple filters using the $and operator ✅
-            index_list = self.docs.query(
-                data=embedding,
-                limit=top_k,
-                filters={
+    def __vector_search(self, bill: str, embedding: List[List[float]], top_k: int = 3) -> List[Any]:
+        """
+        Performs vector search for a list of embeddings and returns a unique list of document IDs.
+        """
+        unique_doc_ids: Set[Any] = set()
+
+        for embed in embedding:
+            # Determine the filter based on the 'bill' parameter
+            if bill == "All":
+                filters = {"type": {"$eq": "Law"}}
+            else:
+                filters = {
                     "$and": [
                         {"belongs_to": {"$eq": bill}},
                         {"type": {"$eq": "Law"}}
                     ]
                 }
+            
+            # Perform the query for the current embedding
+            search_results = self.docs.query(
+                data=embed,
+                limit=top_k,
+                filters=filters,
             )
-        return index_list
+
+            # Extract the ID from each result and add it to the set to ensure uniqueness
+            for index in search_results:
+                # Assuming each result is a dict with an 'id' key
+                unique_doc_ids.add(index)
+
+        # Return the unique IDs as a list
+        return list(unique_doc_ids)
     
     def __fetch_document_content(self, doc_id: int) -> str:
         """Fetches the content of a single document to be audited."""
@@ -146,23 +147,19 @@ class Law():
         document_contents = [self.__fetch_document_content(doc_id) for doc_id in doc_ids]
         
         # 2. Synthesize the contents into a single description (NEW STEP)
-        synthesized_potential_law = self.__synthesize_documents(document_contents)
-        
-        self.__format_scenarios_prompt(synthesized_potential_law)
-        # 4. Generate the hypothetical document from this unified query
-        # hypothetical_doc = self.__generate_hypothetical_document(synthesized_potential_law)
+        synthesized_potential_law = self.__synthesize_law(document_contents)
 
-        # # 5. Embed the hypothetical document
-        # query_embedding = self._embed_text(hypothetical_doc)[0]
+        # 3. Embed the hypothetical document
+        query_embedding = self._embed_text(synthesized_potential_law, embed_type="query")
 
         # # 6. Search for relevant articles
-        # relevant_articles = self.__vector_search(embedding=query_embedding, top_k=top_k, bill=bill)
-        # return relevant_articles
+        relevant_articles = self.__vector_search(embedding=query_embedding, top_k=top_k, bill=bill)
+        return relevant_articles
     
-    def __synthesize_documents(self, contents: List[str]) -> str:
+    def __synthesize_law(self, contents: List[str]) -> str:
         """
         Uses the LLM to read multiple document contents and synthesize them
-        into a single, coherent description.
+        into list of context aware queries
         """
         
         # Prepare the documents for the prompt, clearly separating them
@@ -171,17 +168,10 @@ class Law():
             formatted_docs += f"--- DOCUMENT {i+1} ---\n{content}\n\n"
 
         prompt = self.__format_document_prompt(formatted_docs)
-        # prompt = (
-        #     "You are a legal tech analyst. Read the following documents, which describe different aspects of a single product feature or situation. "
-        #     "Your task is to synthesize them into one cohesive description. Identify the core functionality, the data involved, and the user interactions. "
-        #     "The goal is to create a single, clear context that can be used to find relevant legal articles.\n\n"
-        #     f"{formatted_docs}"
-        #     "--- SYNTHESIZED DESCRIPTION ---"
-        # )
         response = None
         for attempt in range(10):
             try:
-                print(f"Attempting to generate content (Attempt {attempt + 1}/10)...")
+                print(f"Attempting to generate context aware queries (Attempt {attempt + 1}/10)...")
                 response = self.llm_client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=prompt
@@ -201,19 +191,46 @@ class Law():
                     wait_time = 2 ** attempt  # This is exponential backoff
                     print(f"🔁 Server overloaded. Retrying in {wait_time} second(s)...")
                     time.sleep(wait_time)
+        queries_list = self.__parse_corrupted_json(response.text)
         with open("demofile.txt", "w") as f:
-            f.write(response.text) 
+            f.write(f"{queries_list}") 
         f.close()
-        return response.text
+        return queries_list
 
-    def __format_document_prompt(self, formatted_docs: str,) -> str:
+    def __parse_corrupted_json(self, dirty_string: str) -> list:
+        """
+        Extracts and parses a JSON object from a string that may contain extra
+        text at the beginning or end.
+        """
+        try:
+            # Find the index of the first opening curly brace
+            start_index = dirty_string.find('{')
+            
+            # Find the index of the last closing curly brace
+            end_index = dirty_string.rfind('}')
+
+            # If both are found, slice the string to isolate the JSON object
+            if start_index != -1 and end_index != -1 and end_index > start_index:
+                clean_json_string = dirty_string[start_index : end_index + 1]
+                
+                # Now, parse the clean, isolated string
+                data = json.loads(clean_json_string)
+                return data.get("generated_queries", []) # Use .get() for safety
+
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON even after cleaning: {e}")
+        
+        # Return an empty list if parsing fails at any point
+        return []
+
+    def __format_document_prompt(self, project_documents: str,) -> str:
         """Formats the follow-up prompt for the Adjudicator agent."""
         with open("first_model/model/prompt_template/potential_scenario_prompt.txt", "r") as file:
             prompt_template = file.read()
 
 
         final_prompt = prompt_template.format(
-            formatted_docs=formatted_docs,
+            PROJECT_DOCUMENTS=project_documents,
         )
         return final_prompt
 
@@ -358,10 +375,10 @@ if __name__ == "__main__":
     try:
         # Call the new combined audit method
         # final_results = law.audit(doc_ids=combined_document_ids, bill="All")
-        law.audit(doc_ids=combined_document_ids, bill="All")
+        unique_document_ids = law.audit(doc_ids=combined_document_ids, bill="All")
         
         print("\n\n--- FINAL COMBINED AUDIT RESULTS ---")
-        print(final_results)
+        print(unique_document_ids)
 
         # print("--- Evaluation document similarity ---")
         # law.eval_hyde(doc_ids=combined_document_ids, num=10)

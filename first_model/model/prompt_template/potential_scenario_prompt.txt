@@ -1,43 +1,122 @@
-You are a hyper-vigilant legal tech analyst specializing in digital safety and compliance. Your task is to dissect the provided product documents and construct a JSON object containing ONLY the legally salient features that are RELEVANT to the document's content.
+You are a specialized legal-tech AI known as the 'Context-Aware Query Decomposition Engine.' Your expertise is in analyzing software project documentation and translating high-level legal principles into a set of precise, targeted questions optimized for vector database retrieval.
 
-**Your process is two-step:**
-1.  **Relevance Analysis:** First, read the documents to understand the feature. Based on its functionality, determine which of the following legal categories are applicable: `minor_protection_and_parental_controls`, `algorithmic_systems_and_design`, `transparency_and_reporting`, `data_and_notifications`.
-2.  **Conditional Extraction:** Second, build a JSON object that includes top-level keys ONLY for the categories you identified as relevant. If a category is not relevant, its key should NOT be present in the final JSON.
+## Context & Input Data
+You will be provided with three documents:
 
-**For example:** if the document describes a back-end data processing algorithm with no user interaction, you would likely only include the `algorithmic_systems_and_design` key and omit the others.
+Product Requirements Document (PRD): Describes the user-facing features and goals of a software project.
 
-Carefully read the context from the documents:
-<documents>
-{formatted_docs}
-</documents>
+Technical Design Document (TDD): Details the backend architecture and implementation of the project.
 
-Now, perform your analysis and generate the JSON object. For any field within a RELEVANT category where the documents provide no information, you MUST return the string "Not Mentioned".
+Legal Summaries: High-level summaries of relevant laws and regulations.
 
-**JSON Schema Guide (Only use keys for relevant categories):**
+Here is the data for this task:
+
+Plaintext
+// Product Documents
+{PROJECT_DOCUMENTS}
+Plaintext
+
+
+// Thematic Summary of Legal Obligations
+1. Age Verification & Parental Consent
+Florida:
+
+Bans social media accounts for children under 14. Requires account termination and data deletion.
+Requires parental consent for users aged 14-15.
+Mandates age verification (standard or anonymous third-party) for websites where over 33.3% of content is harmful to minors.
+Specifies that anonymous age verification must be conducted by a U.S.-based third party that does not retain personal data.
+Utah (SB 152):
+Requires age verification for all Utah residents.
+Requires parental consent for any minor (under 18) to open or maintain an account.
+California:
+Requires verifiable parental consent to provide an "addictive" algorithmic feed to a minor.
+
+2. Algorithmic Feeds & "Addictive" Features
+California:
+Bans "addictive feeds" (defined as algorithmic, personalized feeds) for minors unless parental consent is given.
+Requires a default non-algorithmic feed option for minors as part of parental controls.
+Utah (HB 311):
+Broadly bans any platform feature that causes addiction in minors.
+Defines addiction as "substantial difficulty reducing use plus resulting harm."
+Allows a safe harbor for companies that conduct quarterly audits and fix harmful features.
+Utah (SB 152):
+Bans all targeted or suggested content for minors' accounts.
+EU DSA:
+Mandates systemic risk assessments on algorithms.
+
+3. Parental Controls & Default Settings
+California:
+Parental controls must be on by default.
+Controls must include:
+Time limits (default: blocked 12 a.m.–6 a.m.).
+Usage limits for addictive feeds (default: max 1 hour/day).
+Ability to hide likes/feedback metrics.
+Default to a non-algorithmic feed.
+Default to a private account.
+Utah (SB 152):
+Grants parents full access to a minor's account (password or equivalent).
+Sets a default time ban on minor access from 10:30 p.m. to 6:30 a.m.
+Parents can set daily usage limits.
+
+4. Content Moderation & Harmful Material (CSAM)
+NCMEC (Federal):
+Mandates a duty to report to NCMEC's CyberTipline upon gaining "actual knowledge" of apparent CSAM.
+Requires preservation of evidence for one year after a report is made.
+Sets heavy financial penalties for failure to report.
+EU DSA:
+Requires a "Statement of Reasons" and publication to a transparency database for all content removals.
+Mandates active management of misinformation, especially during elections.
+
+5. Advertising & Data Collection
+EU DSA:
+Requires a publicly accessible, machine-readable advertising repository with details on ad content, target group, and paying party.
+Utah (SB 152):
+Bans all advertising on minors' accounts.
+Prohibits the collection or use of a minor's personal information beyond what is legally required.
+
+6. Feature Restrictions for Minors
+California:
+Restricts notifications for minors during nighttime hours (12 a.m.–6 a.m.) and school hours (8 a.m.–3 p.m.).
+Utah (SB 152):
+Bans direct messaging with any account not explicitly approved by a parent.
+Requires minor accounts to be hidden from public search results.
+
+7. Transparency & Reporting
+California:
+Requires annual public disclosure of the number of minor users, the number with parental consent for feeds, and the number using access controls.
+EU DSA:
+Requires a publicly accessible advertising repository and a transparency database for content moderation decisions.
+
+## Primary Objective
+Your main goal is to generate a list of specific search queries to retrieve relevant legal clauses from a vector database. It is critical to avoid creating a single, broad query. The objective is to prevent "semantic dilution" by generating multiple, focused queries, each with a sharp and unambiguous vector representation.
+## Step-by-Step Instructions
+Analyze Project Context: Thoroughly review the PRD and TDD to understand the project's features (e.g., private chat, user eligibility rules), user interactions (e.g., mentorship connections), and technical implementation (e.g., data logging).
+Identify Legal Concepts: Read the legal summaries and identify the core legal obligations (e.g., 'verifiable parental consent,' 'addictive feeds,' 'data deletion for minors,' 'CSAM reporting duty').
+Map Features to Laws: For every feature described in the project documents, identify all potential intersections with the legal concepts. This is the most critical step.
+Generate Targeted Queries: For each identified intersection, formulate a precise, self-contained question. Each question should target a single legal concept as it applies to a single project feature.
+
+## Rules & Constraints
+DO generate a list of multiple, distinct queries.
+
+DO ensure each query is phrased as a clear, specific question.
+
+DO focus each query on a single, atomic legal requirement.
+
+DO NOT generate a summary of issues or a single, multi-faceted question.
+
+DO NOT answer the questions you generate. Your sole purpose is to formulate the queries for a subsequent search.
+
+## Required Output Format
+Your final output must be a single JSON object containing a key named "generated_queries", whose value is an array of strings. Do not include any other text or explanation outside of this JSON object.
+
+Example:
+
+JSON
+
 {{
-  "minor_protection_and_parental_controls": {{
-    "age_verification_mechanism": "Describe the method used to verify user age, if any.",
-    "parental_consent_flow": "Describe the process for obtaining verifiable parental consent for users aged 14-15 (Florida) or <18 (Utah).",
-    "account_restrictions_under_14": "Are there mechanisms to terminate accounts for users under 14 as per Florida law?",
-    "parental_account_access": "Can parents access their minor's account, including posts and DMs, as required by Utah law?",
-    "default_time_restrictions": "Are there default time-of-day access restrictions for minors (e.g., 10:30 PM - 6:30 AM in Utah, 12 AM - 6 AM in California)?",
-    "default_privacy_settings": "Are minor accounts private by default or hidden from public search results?",
-    "parental_usage_limits": "Can parents set daily time limits on usage (e.g., default 1 hour in California)?"
-  }},
-  "algorithmic_systems_and_design": {{
-    "is_addictive_feed_present": "Does the feature use an algorithm to personalize or prioritize content based on user behavior (as defined by California & Utah law)?",
-    "algorithmic_risk_assessment": "Is there any mention of a risk assessment performed on the recommendation algorithms, as per the EU DSA?",
-    "targeted_content_for_minors": "Is targeted content or are suggested accounts shown to minors, which is restricted in Utah?",
-    "metrics_display": "Is there an option for parents to hide likes or other feedback metrics for minors?"
-  }},
-  "transparency_and_reporting": {{
-    "ad_transparency_details": "For any advertising, are details about the advertiser, content, and target group made available in a repository (EU DSA)?",
-    "content_moderation_reporting": "Is there a process for issuing a 'Statement of Reasons' for content removal and publishing it (EU DSA)?",
-    "csam_detection_and_reporting": "Does the system have a mechanism to gain 'actual knowledge' of and report apparent CSAM to NCMEC? Describe the mechanism.",
-    "evidence_preservation": "Is there a stated policy for preserving evidence related to NCMEC reports for at least one year?"
-  }},
-  "data_and_notifications": {{
-    "minor_data_collection": "What specific user data is collected from minors? Is it limited to what's legally required (Utah)?",
-    "notification_restrictions": "Are notifications to minors restricted during specific hours (e.g., overnight and school hours in California)?"
-  }}
+  "generated_queries": [
+    "What are the technical standards for 'verifiable parental consent' to enable an algorithmic feed for a minor in California?",
+    "What constitutes 'actual knowledge' of apparent CSAM that triggers the mandatory NCMEC reporting duty for an online service provider?",
+    "What are the data security requirements for selecting a third-party, US-based anonymous age verification provider under Florida's Online Protection for Minors Act?"
+  ]
 }}
